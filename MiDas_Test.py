@@ -4,7 +4,7 @@ import urllib.request
 
 import matplotlib.pyplot as plt
 
-url, filename = ("https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg")
+url, filename = ("/Users/binhantian/GitHub/MSc_Project/Pictures/dog.jpg", "dog.jpg")
 urllib.request.urlretrieve(url, filename)
 
 model_type = "DPT_Large"     # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
