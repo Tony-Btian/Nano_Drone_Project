@@ -162,5 +162,5 @@ cython_debug/
 #.idea/
 
 # PyTorch
-.pt
-.pth
+*.pt
+*.pth
