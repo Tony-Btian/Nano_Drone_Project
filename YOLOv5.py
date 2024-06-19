@@ -20,35 +20,39 @@ def main():
     while True:
         
         # 读取摄像头画面
-        frames = []
-        for _ in range(4):
-            ret, frame = cap.read()
-            if not ret:
-                print("无法读取画面")
-                return
-            frames.append(frame)
+        ret1, frame1 = cap.read()
+        ret2, frame2 = cap.read()
+
+        if not ret1:
+            print("无法读取画面")
+            return
+        
+        if not ret1:
+            print("无法读取画面")
+            return
         
         # 获取画面的高度和宽度
-        height, width = frames[0].shape[:2]
+        height, width = frame1.shape[:2]
 
         # 目标检测
-        results = detect_objects(frame[0])
+        results = detect_objects(frame2)
         
         # 在原始图像上绘制检测结果
         for idx, row in results.iterrows():
             x1, y1, x2, y2, conf, cls = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax']), row['confidence'], row['name']
             label = f"{cls} {conf:.2f}"
+
             # 绘制边框和标签
-            cv2.rectangle(frames[1], (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frames[1], label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            cv2.rectangle(frame2, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame2, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # 创建四宫格图像
-        top_row = cv2.hconcat([frames[0], frames[1]])
-        bottom_row = cv2.hconcat([frames[2], frames[3]])
-        quad_fram = cv2.vconcat([top_row, bottom_row])
+        top_row = cv2.hconcat([frame1, frame2])
+        # bottom_row = cv2.hconcat([frames[2], frames[3]])
+        # quad_fram = cv2.vconcat([top_row, bottom_row])
         
         # 显示画面
-        cv2.imshow('Quad View', quad_fram)
+        cv2.imshow('Quad View', top_row)
         
         # 检查是否按下'q'键，按下则退出
         if cv2.waitKey(1) & 0xFF == ord('q'):
