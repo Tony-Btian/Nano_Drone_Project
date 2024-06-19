@@ -1,3 +1,4 @@
+setuptools
 numpy
 opencv-python
 torch
@@ -5,3 +6,4 @@ torchvision
 gradio_imageslider
 gradio==4.14.0
 huggingface_hub
+pandas

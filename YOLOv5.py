@@ -12,7 +12,7 @@ def detect_objects(frame):
 
 def main():
     # 打开摄像头
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("无法打开摄像头")
         return
