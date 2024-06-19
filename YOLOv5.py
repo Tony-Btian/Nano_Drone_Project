@@ -1,6 +1,5 @@
-import cv2
-import numpy as np
-import torch
+import cv2 # type: ignore
+import torch # type: ignore
 
 # 加载YOLOv5模型
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
