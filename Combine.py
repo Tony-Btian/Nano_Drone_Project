@@ -70,7 +70,7 @@ def main():
             cv2.putText(frames[0], label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # 生成深度图
-        depth_map = estimate_depth(frames[0])
+        depth_map = estimate_depth(frames[1])
         frames[1] = depth_map
         
         # 创建四宫格图像
