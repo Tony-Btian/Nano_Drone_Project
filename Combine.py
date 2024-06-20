@@ -79,7 +79,7 @@ def main():
         # quad_frame = cv2.vconcat([top_row, bottom_row])
         
         # 显示画面
-        cv2.imshow('Quad View', top_row)
+        cv2.imshow('Camera View', top_row)
         
         # 检查是否按下'q'键，按下则退出
         if cv2.waitKey(1) & 0xFF == ord('q'):
