@@ -2,12 +2,20 @@ import cv2
 import numpy as np
 import torch
 
+# 检查CUDA是否可用
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Using device: {device}")
+
 # 加载YOLOv5模型
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+# model = torch.hub.load('ultralytics/yolov5', 'yolov5x', device=device)
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s', device=device)
 
 # 加载Midas深度估计模型
-midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small')
+midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small').to(device)
+# midas = torch.hub.load('intel-isl/MiDaS', 'DPT_Large').to(device)
+
 midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 midas.to(device).eval()
@@ -19,7 +27,10 @@ def detect_objects(frame):
 
 def estimate_depth(frame):
     # 将图像转换为Midas模型的输入格式
-    transform = midas_transforms.small_transform
+
+    transform = midas_transforms.dpt_transform
+    # transform = midas_transforms.small_transform
+
     input_batch = transform(frame).to(device)
     
     # 进行深度估计
