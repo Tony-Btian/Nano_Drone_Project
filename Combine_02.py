@@ -6,31 +6,41 @@ import torch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
+# 验证CUDA可用性
+if torch.cuda.is_available():
+    print(f"CUDA device count: {torch.cuda.device_count()}")
+    for i in range(torch.cuda.device_count()):
+        print(f"CUDA device {i}: {torch.cuda.get_device_name(i)}")
+else:
+    print("CUDA is not available. Switching to CPU.")
+
+
 # 加载YOLOv5模型
-# model = torch.hub.load('ultralytics/yolov5', 'yolov5x', device=device)
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', device=device)
+try:
+    model = torch.hub.load('ultralytics/yolov5', 'yolov5s', device=device, force_reload=True)
+    print("YOLOv5 model loaded successfully.")
+except Exception as e:
+    print(f"Error loading YOLOv5 model: {e}")
+    model = torch.hub.load('ultralytics/yolov5', 'yolov5s', device='cpu', force_reload=True)
 
 # 加载Midas深度估计模型
-midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small').to(device)
-# midas = torch.hub.load('intel-isl/MiDaS', 'DPT_Large').to(device)
+try:
+    midas = torch.hub.load('intel-isl/MiDaS', 'DPT_Large', pretrained=True).to(device)
+    midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
+    print("MiDaS model loaded successfully.")
+except Exception as e:
+    print(f"Error loading MiDaS model: {e}")
 
-midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
-
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-midas.to(device).eval()
 
 def detect_objects(frame):
     # 使用模型进行目标检测
     results = model(frame)
     return results.pandas().xyxy[0]  # 返回检测结果
 
+
 def estimate_depth(frame):
     # 将图像转换为Midas模型的输入格式
-
     transform = midas_transforms.dpt_transform
-    # transform = midas_transforms.small_transform
-
     input_batch = transform(frame).to(device)
     
     # 进行深度估计
@@ -48,15 +58,16 @@ def estimate_depth(frame):
     depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
     return depth_map
 
+
 def main():
     # 打开摄像头
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("无法打开摄像头")
         return
     
     while True:
-        
+
         # 读取摄像头画面
         frames = []
         for _ in range(2):
@@ -65,7 +76,7 @@ def main():
                 print("无法读取画面")
                 return
             frames.append(frame)
-        
+
         # 获取画面的高度和宽度
         height, width = frames[0].shape[:2]
 
@@ -82,15 +93,12 @@ def main():
 
         # 生成深度图
         depth_map = estimate_depth(frames[1])
-        frames[1] = depth_map
-        
-        # 创建四宫格图像
-        top_row = cv2.hconcat([frames[0], frames[1]])
-        # bottom_row = cv2.hconcat([frames[2], frames[3]])
-        # quad_frame = cv2.vconcat([top_row, bottom_row])
+
+        # 创建双视图图像
+        combined_frame = cv2.hconcat([frames[0], depth_map])
         
         # 显示画面
-        cv2.imshow('Camera View', top_row)
+        cv2.imshow('Camera View', combined_frame)
         
         # 检查是否按下'q'键，按下则退出
         if cv2.waitKey(1) & 0xFF == ord('q'):
