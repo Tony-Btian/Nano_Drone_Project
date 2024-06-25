@@ -4,28 +4,40 @@
 
 ```mermaid
 gantt
-    title SkyPluse UAV Project Management Plan
+    title MSc Project: Autom
     dateFormat  YYYY-MM-DD
-    section SkyPulseUAV
-	todayMarker off
-	
-    Project Direction Decision     :done,   des1, 2024-01-14,2024-01-20
-    MPU6050 Sensor Setup     :done,    des2, 2024-01-20, 2024-01-27
-    Mahony Filter Implementation    :done,    des3, after des2, 2024-02-10
-    Communication Protocol Development  :done, des4, after des3, 2024-02-17
-    Basic Flight Control Logic  :done, des5, after des4, 2024-02-24
-    Advanced Flight Control Logic  :done, des6, after des5, 2024-03-10
-    Sensor Data Fusion  :done, des6, after des4, 2024-03-12
-    System Integration Testing  :done, des7, after des6, 2024-03-19
-    Flight Control Algorithm Tuning  :done, des8, after des7, 2024-03-25
-    Project Documentation  :done, des9, after des8, 2024-04-02
+    todayMarker on
+
+    section Weeks
+    Week 1  :a1, 2024-05-20, 7d
+    Week 2  :a2, 2024-05-27, 7d
+    Week 3  :a3, 2024-06-03, 7d
+    Week 4  :a4, 2024-06-10, 7d
+    Week 5  :a5, 2024-06-17, 7d
+    Week 6  :a6, 2024-06-24, 7d
+    Week 7  :a7, 2024-07-01, 7d
+    Week 8  :a8, 2024-07-08, 7d
+    Week 9  :a9, 2024-07-15, 7d
+    Week 10 :a10, 2024-07-22, 7d
+    Week 11 :a11, 2024-07-29, 7d
+
+    section Tasks
+    Project Planning 			:done, des1, 2024-05-20, 2024-06-03
+    Requirements / Analysis 		:done, des2, 2024-05-27, 2024-06-10
+    Get Environment Ready 		:done, des3, 2024-05-20, 2024-06-10
+    Design			        :done, des4, 2024-06-03, 2024-07-01
+    Programming / Unit Testing	        :done, des5, 2024-06-17, 2024-07-22
+    Integration & UAT		 	:done, des6, 2024-07-15, 2024-07-29
+    Dissertation 			:done, des6, 2024-07-22, 2024-08-05
+    Video		 		:done, des7, 2024-07-22, 2024-08-05
+    Deploy & Submit		 	:done, des8, 2024-07-29, 2024-08-05
 ```
 
 ## Meeting No.1
 
 | Item              | Details              |
 | ----------------- | -------------------- |
-| **Meeting Title** | Meeting Title	Discussion on Project Direction and Topics |
+| **Meeting Title** | Meeting Title Discussion on Project Direction and Topics |
 | **Meeting Date**  | June 6, 2024 |
 | **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian  |
 
@@ -80,7 +92,7 @@ The project proposal may contain misleading descriptions. Discussion of changes 
 
 - Learning MATLAB and Simulink: continued to enhance the proficiency with MATLAB and Simulink
 - Research on Deep learning and image recognition
-- Attempts to set up a deep learning framework
+- Attempts to set up a deep-learning framework
 
 ### Upcoming Activities – Next Week
 
