@@ -97,6 +97,6 @@ Nothing
 
 | Item              | Details              |
 | ----------------- | -------------------- |
-| **Meeting Title** | Meeting Title	Discussion on Project Direction and Topics |
-| **Meeting Date**  | June 6, 2024 |
+| **Meeting Title** |  |
+| **Meeting Date**  |  |
 | **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian  |
