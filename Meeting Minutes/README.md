@@ -34,11 +34,11 @@ gantt
 
 ## Meeting No.1
 
-| Item              | Details              				       |
+| Item              | Details              				                       |
 | ----------------- | -------------------------------------------------------- |
 | **Meeting Title** | Meeting Title Discussion on Project Direction and Topics |
-| **Meeting Date**  | June 6, 2024					       |
-| **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian	       |
+| **Meeting Date**  | June 6, 2024					                           |
+| **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian	           |
 
 ### Meeting Content
 
@@ -70,11 +70,11 @@ Nothing
 
 ## Meeting No.2
 
-| Item     	    | Details              						    |
+| Item     	        | Details              						                            |
 | ----------------- | --------------------------------------------------------------------- |
 | **Meeting Title** | Finalization of Project Topic and Collection Crazyflie Drone Hardware |
-| **Meeting Date**  | June 13, 2024							    |
-| **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian			    |
+| **Meeting Date**  | June 13, 2024							                                |
+| **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian			                |
 
 
 ### Meeting Content
@@ -92,7 +92,7 @@ The project proposal may contain misleading descriptions. Discussion of changes 
 
 - Learning MATLAB and Simulink: continued to enhance the proficiency with MATLAB and Simulink
 - Research on Deep learning and image recognition
-- Attempts to set up a deep learning framework
+- Attempts to set up a deep-learning framework
 
 ### Upcoming Activities – Next Week
 
@@ -109,6 +109,6 @@ Nothing
 
 | Item              | Details              |
 | ----------------- | -------------------- |
-| **Meeting Title** | Meeting Title Discussion on Project Direction and Topics |
-| **Meeting Date**  | June 6, 2024 |
+| **Meeting Title** |                      |
+| **Meeting Date**  |                      |
 | **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian  |
