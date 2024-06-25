@@ -1,6 +1,9 @@
 PySide6
 numpy==1.26.4
 pandas
+matplotlib
+psutil
+pyqtgraph
 opencv-python
 torch --extra-index-url https://download.pytorch.org/whl/cu121
 torchvision --extra-index-url https://download.pytorch.org/whl/cu121

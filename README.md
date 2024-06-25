@@ -47,3 +47,9 @@ git clone https://github.com/Tony-Btian/MSc_Project.git
 cd MSc_Project
 pip install -r requirements.txt
 ```
+or 
+
+```Bash
+pip3 install PySide6 numpy==1.26.4 pandas opencv-python timm
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
