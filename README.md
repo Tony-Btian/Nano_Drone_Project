@@ -9,3 +9,13 @@ This repository is for MSc project only.
 
 甚至可以在这个基础上弄一弄如何进行建模
 
+# Features of Nano Drone Simulator
+The
+
+# Usage
+### Installation
+```Bash
+git clone https://github.com/Tony-Btian/MSc_Project.git
+cd MSc_Project
+pip install -r requirements.txt
+```
