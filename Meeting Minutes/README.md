@@ -1,6 +1,6 @@
 # Meeting Minutes
 
-## Project GANNT Chart
+### Project GANNT Chart
 
 ```mermaid
 gantt
@@ -92,3 +92,11 @@ The project proposal may contain misleading descriptions. Discussion of changes 
 ### Issues, Risks and Concerns
 
 Nothing
+
+## Meeting No.3
+
+| Item              | Details              |
+| ----------------- | -------------------- |
+| **Meeting Title** | Meeting Title	Discussion on Project Direction and Topics |
+| **Meeting Date**  | June 6, 2024 |
+| **Participants**  | Mahmud Sani Zango, Yuxuan Han, Binhan Tian  |
