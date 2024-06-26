@@ -5,12 +5,13 @@ from PySide6.QtCore import QThread, Signal
 
 class ModelLoader(QThread):
     update_output = Signal(str)
-    model_loaded = Signal(object, object)
+    models_loaded = Signal(object, object, object)  # Emit MiDaS model, MiDaS transforms, and YOLO model
 
-    def __init__(self, device, model_name):
+    def __init__(self, device, midas_model_name, yolo_model_name):
         super().__init__()
         self.device = device
-        self.model_name = model_name
+        self.midas_model_name = midas_model_name
+        self.yolo_model_name = yolo_model_name
 
     def run(self):
         old_stdout = sys.stdout
@@ -23,13 +24,19 @@ class ModelLoader(QThread):
             else:
                 print("CUDA is not available. Switching to CPU.")
 
-            midas = torch.hub.load('intel-isl/MiDaS', self.model_name, pretrained=True).to(self.device)
+            # Load MiDaS model
+            midas = torch.hub.load('intel-isl/MiDaS', self.midas_model_name, pretrained=True).to(self.device)
             midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
-            print(f"MiDaS model {self.model_name} loaded successfully.")
-            self.model_loaded.emit(midas, midas_transforms)
+            print(f"MiDaS model {self.midas_model_name} loaded successfully.")
+
+            # Load YOLO model
+            yolo_model = torch.hub.load('ultralytics/yolov5', self.yolo_model_name, pretrained=True).to(self.device)
+            print(f"YOLO model {self.yolo_model_name} loaded successfully.")
+            
+            self.models_loaded.emit(midas, midas_transforms, yolo_model)
         except Exception as e:
-            print(f"Error loading MiDaS model: {e}")
-            self.model_loaded.emit(None, None)
+            print(f"Error loading models: {e}")
+            self.models_loaded.emit(None, None, None)
         finally:
             self.update_output.emit(mystdout.getvalue())
             sys.stdout = old_stdout
