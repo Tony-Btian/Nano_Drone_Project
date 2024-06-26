@@ -46,6 +46,8 @@ class CameraProcessor(QThread):
     
     def release(self):
         self.cap.release()
+        if self.device.type == 'cuda':
+            torch.cuda.empty_cache()
 
     def run(self):
         self._run_flag = True

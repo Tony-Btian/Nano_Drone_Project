@@ -1,4 +1,3 @@
-import sys
 import torch
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt, QObject, QTimer
@@ -19,6 +18,7 @@ class Functionality(QObject):
         self.loading_animation_timer = QTimer()
         self.loading_animation_step = 0
         self.model_loading_in_progress = False  # Add this flag
+        self.current_model_name = None  # Store the current model name
 
         self.message_display = MessageDisplay(self.ui_builder.textEdit)
 
@@ -66,8 +66,15 @@ class Functionality(QObject):
             button.setEnabled(states['radio_buttons'])
 
     def _on_load_model(self):
-        if self.model_loading_in_progress:  # Check if model loading is already in progress
+        model_name = self._get_selected_model_name()
+
+        if self.model_loading_in_progress:
             return
+
+        if model_name == self.current_model_name:
+            self.message_display.append_text("Loaded model is the same as the current model. No action taken.\n")
+            return
+
         self.model_loading_in_progress = True  # Set the flag to true
 
         self._set_controls_enabled({
@@ -78,11 +85,10 @@ class Functionality(QObject):
             'disconnect': False,
             'radio_buttons': False
         })
-        self.message_display.set_text("Loading MiDaS model, please wait...\n")
-        model_name = self._get_selected_model_name()
-        if self.model_loader is not None and self.model_loader.isRunning():
-            self.model_loader.quit()
-            self.model_loader.wait()
+        self.message_display.set_text(f"Loading MiDaS model {model_name}, please wait...\n")
+
+        self._release_current_model()
+
         self.model_loader = ModelLoader(self.device, model_name)
         self.model_loader.update_output.connect(self._update_text_edit)
         self.model_loader.model_loaded.connect(self._set_model)
@@ -93,7 +99,7 @@ class Functionality(QObject):
         if self.ui_builder.radioButton_midas_small.isChecked():
             return 'MiDaS_small'
         elif self.ui_builder.radioButton_midas_hybrid.isChecked():
-            return 'MiDaS_hybrid'
+            return 'DPT_Hybrid'
         else:
             return 'DPT_Large'
 
@@ -103,19 +109,35 @@ class Functionality(QObject):
     def _set_model(self, midas, midas_transforms):
         self.midas = midas
         self.midas_transforms = midas_transforms
+        self.current_model_name = self._get_selected_model_name() if self.midas else None
         self.loading_animation_timer.stop()
         final_message = "\nMiDaS model loaded successfully." if self.midas else "\nFailed to load MiDaS model."
         self.message_display.append_text(final_message)
         self.model_loading_in_progress = False  # Reset the flag
 
         self._set_controls_enabled({
-            'launch': True,
-            'stop': True,
+            'launch': True if self.midas else False,
+            'stop': False,
             'load_model': True,
             'connect': True,
             'disconnect': True,
             'radio_buttons': True
         })
+
+    def _release_current_model(self):
+        if self.camera_processor is not None and self.camera_processor.isRunning():
+            self.camera_processor.stop()
+            self.camera_processor = None
+
+        if self.midas is not None:
+            del self.midas
+            self.midas = None
+
+        if self.midas_transforms is not None:
+            del self.midas_transforms
+            self.midas_transforms = None
+
+        torch.cuda.empty_cache()  # Clear CUDA memory if used
 
     def _loading_animation(self):
         self.message_display.loading_animation(self.loading_animation_step)
@@ -138,13 +160,16 @@ class Functionality(QObject):
             self.camera_processor.processingStopped.connect(self.on_processing_stopped)
             self.camera_processor.errorOccurred.connect(self.show_error_message)
             self.camera_processor.start()
+            self._set_controls_enabled({'launch': False, 'stop': True, 'load_model': False, 'connect': True, 'disconnect': True, 'radio_buttons': False})
 
     def _on_stop(self):
         if self.camera_processor is not None and self.camera_processor.isRunning():
             self.camera_processor.stop()
+            self._set_controls_enabled({'launch': True, 'stop': False, 'load_model': True, 'connect': True, 'disconnect': True, 'radio_buttons': True})
 
     def on_processing_stopped(self):
         self.camera_processor = None
+        self._set_controls_enabled({'launch': True, 'stop': False, 'load_model': True, 'connect': True, 'disconnect': True, 'radio_buttons': True})
 
     def show_error_message(self, message):
         msg_box = QMessageBox()
@@ -168,6 +193,7 @@ class Functionality(QObject):
         label.setPixmap(QPixmap.fromImage(q_img).scaled(label.size(), Qt.AspectRatioMode.KeepAspectRatio))
 
     def __del__(self):
+        self._release_current_model()
         if self.model_loader is not None:
             self.model_loader.quit()
             self.model_loader.wait()
