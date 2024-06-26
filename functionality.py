@@ -1,3 +1,4 @@
+import sys
 import torch
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt, QObject, QTimer
@@ -13,13 +14,11 @@ class Functionality(QObject):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.midas = None
         self.midas_transforms = None
-        self.yolo_model = None
         self.camera_processor = None
         self.model_loader = None
         self.loading_animation_timer = QTimer()
         self.loading_animation_step = 0
-        self.model_loading_in_progress = False
-        self.current_model_name = None
+        self.model_loading_in_progress = False  # Add this flag
 
         self.message_display = MessageDisplay(self.ui_builder.textEdit)
 
@@ -67,17 +66,9 @@ class Functionality(QObject):
             button.setEnabled(states['radio_buttons'])
 
     def _on_load_model(self):
-        midas_model_name = self._get_selected_midas_model_name()
-        yolo_model_name = self._get_selected_yolo_model_name()
-
-        if self.model_loading_in_progress:
+        if self.model_loading_in_progress:  # Check if model loading is already in progress
             return
-
-        if midas_model_name == self.current_model_name and yolo_model_name == self.current_model_name:
-            self.message_display.append_text("Loaded model is the same as the current model. No action taken.\n")
-            return
-
-        self.model_loading_in_progress = True
+        self.model_loading_in_progress = True  # Set the flag to true
 
         self._set_controls_enabled({
             'launch': False,
@@ -87,87 +78,44 @@ class Functionality(QObject):
             'disconnect': False,
             'radio_buttons': False
         })
-        self.message_display.set_text(f"Loading models {midas_model_name} and {yolo_model_name}, please wait...\n")
-
-        self._release_current_model()
-
-        self.model_loader = ModelLoader(self.device, midas_model_name, yolo_model_name)
+        self.message_display.set_text("Loading MiDaS model, please wait...\n")
+        model_name = self._get_selected_model_name()
+        if self.model_loader is not None and self.model_loader.isRunning():
+            self.model_loader.quit()
+            self.model_loader.wait()
+        self.model_loader = ModelLoader(self.device, model_name)
         self.model_loader.update_output.connect(self._update_text_edit)
-        self.model_loader.models_loaded.connect(self._set_models)
+        self.model_loader.model_loaded.connect(self._set_model)
         self.model_loader.start()
         self.loading_animation_timer.start(500)
 
-    def _get_selected_midas_model_name(self):
+    def _get_selected_model_name(self):
         if self.ui_builder.radioButton_midas_small.isChecked():
             return 'MiDaS_small'
         elif self.ui_builder.radioButton_midas_hybrid.isChecked():
-            return 'DPT_Hybrid'
-        elif self.ui_builder.radioButton_midas_large.isChecked():
+            return 'MiDaS_hybrid'
+        else:
             return 'DPT_Large'
-        else:
-            return None
-
-    def _get_selected_yolo_model_name(self):
-        if self.ui_builder.radioButton_yolov1.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv1 model name if needed
-        elif self.ui_builder.radioButton_yolov2.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv2 model name if needed
-        elif self.ui_builder.radioButton_yolov3.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv3 model name if needed
-        elif self.ui_builder.radioButton_yolov4.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv4 model name if needed
-        elif self.ui_builder.radioButton_yolov5.isChecked():
-            return 'yolov5s'
-        elif self.ui_builder.radioButton_yolov6.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv6 model name if needed
-        elif self.ui_builder.radioButton_yolov7.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv7 model name if needed
-        elif self.ui_builder.radioButton_yolov8.isChecked():
-            return 'yolov5s'  # Replace with actual YOLOv8 model name if needed
-        else:
-            return None
 
     def _update_text_edit(self, text):
         self.message_display.append_text(text)
 
-    def _set_models(self, midas, midas_transforms, yolo_model):
+    def _set_model(self, midas, midas_transforms):
         self.midas = midas
         self.midas_transforms = midas_transforms
-        self.yolo_model = yolo_model
-        
-        self.current_model_name = self._get_selected_midas_model_name() if self.midas else None
         self.loading_animation_timer.stop()
-        final_message = "\nModels loaded successfully." if self.midas and self.yolo_model else "\nFailed to load models."
+        final_message = "\nMiDaS model loaded successfully." if self.midas else "\nFailed to load MiDaS model."
         self.message_display.append_text(final_message)
-        self.model_loading_in_progress = False
+        self.model_loading_in_progress = False  # Reset the flag
 
         self._set_controls_enabled({
-            'launch': True if self.midas and self.yolo_model else False,
-            'stop': False,
+            'launch': True,
+            'stop': True,
             'load_model': True,
             'connect': True,
             'disconnect': True,
             'radio_buttons': True
         })
-
-    def _release_current_model(self):
-        if self.camera_processor is not None and self.camera_processor.isRunning():
-            self.camera_processor.stop()
-            self.camera_processor = None
-
-        if self.midas is not None:
-            del self.midas
-            self.midas = None
-
-        if self.midas_transforms is not None:
-            del self.midas_transforms
-            self.midas_transforms = None
-
-        if self.yolo_model is not None:
-            del self.yolo_model
-            self.yolo_model = None
-
-        torch.cuda.empty_cache()  # Clear CUDA memory if used
 
     def _loading_animation(self):
         self.message_display.loading_animation(self.loading_animation_step)
@@ -180,26 +128,23 @@ class Functionality(QObject):
         print('断开按钮被点击了！')
 
     def _on_launch(self):
-        if not self.midas or not self.yolo_model:
-            self.show_error_message("Models not loaded. Please load the models first.")
+        if not self.midas:
+            self.show_error_message("Model not loaded. Please load a model first.")
             return
 
         if self.camera_processor is None or not self.camera_processor.isRunning():
-            self.camera_processor = CameraProcessor(self.midas, self.midas_transforms, self.yolo_model)
+            self.camera_processor = CameraProcessor(self.midas, self.midas_transforms)
             self.camera_processor.frameCaptured.connect(self.update_frame)
             self.camera_processor.processingStopped.connect(self.on_processing_stopped)
             self.camera_processor.errorOccurred.connect(self.show_error_message)
             self.camera_processor.start()
-            self._set_controls_enabled({'launch': False, 'stop': True, 'load_model': False, 'connect': True, 'disconnect': True, 'radio_buttons': False})
 
     def _on_stop(self):
         if self.camera_processor is not None and self.camera_processor.isRunning():
             self.camera_processor.stop()
-            self._set_controls_enabled({'launch': True, 'stop': False, 'load_model': True, 'connect': True, 'disconnect': True, 'radio_buttons': True})
 
     def on_processing_stopped(self):
         self.camera_processor = None
-        self._set_controls_enabled({'launch': True, 'stop': False, 'load_model': True, 'connect': True, 'disconnect': True, 'radio_buttons': True})
 
     def show_error_message(self, message):
         msg_box = QMessageBox()
@@ -209,9 +154,8 @@ class Functionality(QObject):
         msg_box.setStandardButtons(QMessageBox.Ok)
         msg_box.exec()
 
-    def update_frame(self, original_frame, yolo_frame, midas_frame):
+    def update_frame(self, original_frame, midas_frame):
         self._display_image(self.ui_builder.video_original, original_frame)
-        self._display_image(self.ui_builder.video_yolo, yolo_frame)
         self._display_image(self.ui_builder.video_midas, midas_frame)
 
     def _display_image(self, label, frame):
@@ -224,7 +168,6 @@ class Functionality(QObject):
         label.setPixmap(QPixmap.fromImage(q_img).scaled(label.size(), Qt.AspectRatioMode.KeepAspectRatio))
 
     def __del__(self):
-        self._release_current_model()
         if self.model_loader is not None:
             self.model_loader.quit()
             self.model_loader.wait()
