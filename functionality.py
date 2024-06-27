@@ -156,6 +156,7 @@ class Functionality(QObject):
 
     def update_frame(self, original_frame, midas_frame):
         self._display_image(self.ui_builder.video_original, original_frame)
+        self._display_image(self.ui_builder.video_yolo, original_frame)
         self._display_image(self.ui_builder.video_midas, midas_frame)
 
     def _display_image(self, label, frame):
