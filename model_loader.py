@@ -26,10 +26,18 @@ class ModelLoader(QThread):
             midas = torch.hub.load('intel-isl/MiDaS', self.model_name, pretrained=True).to(self.device)
             midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
             print(f"MiDaS model {self.model_name} loaded successfully.")
+
+            # yolo = torch.hub.load('ultralystics/yolov5', 'yolov5s', device=self.device, force_reload=True)
+            # print("YOLOv5 model loaded successfully.")
+            
             self.model_loaded.emit(midas, midas_transforms)
+
         except Exception as e:
+            # yolo = torch.hub.load('ultralytics/yolov5', 'yolov5s', device='cpu', force_reload=True)
             print(f"Error loading MiDaS model: {e}")
+            # print(f"Error loading YOLOv5 model: {e}")
             self.model_loaded.emit(None, None)
+                 
         finally:
             self.update_output.emit(mystdout.getvalue())
             sys.stdout = old_stdout

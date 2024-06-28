@@ -4,17 +4,20 @@ import numpy as np
 from PySide6.QtCore import QThread, Signal
 
 class CameraProcessor(QThread):
-    frameCaptured = Signal(np.ndarray, np.ndarray)  # Signal to send frames to UI
+    frameCaptured = Signal(np.ndarray, np.ndarray, np.ndarray)  # Signal to send frames to UI
     processingStopped = Signal()  # Signal to notify that processing has stopped
     errorOccurred = Signal(str)  # Signal to notify that an error has occurred
+
 
     def __init__(self, midas, midas_transforms, parent=None):
         super().__init__(parent)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.midas = midas
+        self.yolo = midas
         self.midas_transforms = midas_transforms
         self.cap = cv2.VideoCapture(0)  # Initialize camera
         self._run_flag = False
+
 
     def estimate_depth(self, frame):
         if not self.midas or not self.midas_transforms:
@@ -35,7 +38,15 @@ class CameraProcessor(QThread):
 
         depth_map = prediction.cpu().numpy()
         depth_map = cv2.normalize(depth_map, None, 0, 255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        return cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
+        depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
+        return depth_map
+    
+
+    # def object_detection(self, frame):
+    #     results = yolo(frame)
+    #     results.pandas().xyxy[0]
+    #     return results
+    
 
     def get_frame(self):
         ret, frame = self.cap.read()
@@ -44,8 +55,10 @@ class CameraProcessor(QThread):
             return None
         return frame
     
+
     def release(self):
         self.cap.release()
+
 
     def run(self):
         self._run_flag = True
@@ -53,11 +66,13 @@ class CameraProcessor(QThread):
             frame = self.get_frame()
             if frame is not None:
                 midas_frame = self.estimate_depth(frame)
-                self.frameCaptured.emit(frame, midas_frame)
+                yolo_frame = self.estimate_depth(frame)
+                self.frameCaptured.emit(frame, yolo_frame, midas_frame)
             else:
                 self._run_flag = False
         self.release()
         self.processingStopped.emit()  # Emit signal to notify processing has stopped
+
 
     def stop(self):
         self._run_flag = False

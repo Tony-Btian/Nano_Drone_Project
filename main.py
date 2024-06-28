@@ -25,6 +25,11 @@ class Widget(QWidget):
         self.ui.pushButton_stop.clicked.connect(self.functionality._on_stop)
         self.ui.pushButton_loadmodel.clicked.connect(self.functionality._on_load_model)
 
+    def closeEvent(self, event):
+        self.functionality._cleanup()
+        event.accept()
+        
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     widget = Widget()

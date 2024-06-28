@@ -65,6 +65,73 @@ class Functionality(QObject):
         for button in radio_buttons:
             button.setEnabled(states['radio_buttons'])
 
+    def _get_selected_model_name(self):
+        if self.ui_builder.radioButton_midas_small.isChecked():
+            return 'MiDaS_small'
+        elif self.ui_builder.radioButton_midas_hybrid.isChecked():
+            return 'MiDaS_hybrid'
+        else:
+            return 'DPT_Large'
+
+    def _set_model(self, midas, midas_transforms):
+        self.midas = midas
+        self.midas_transforms = midas_transforms
+        self.loading_animation_timer.stop()
+        final_message = "\nMiDaS model loaded successfully." if self.midas else "\nFailed to load MiDaS model."
+        self.message_display.append_text(final_message)
+        self.model_loading_in_progress = False  # Reset the flag
+
+        self._set_controls_enabled({
+            'launch': True,
+            'stop': True,
+            'load_model': True,
+            'connect': True,
+            'disconnect': True,
+            'radio_buttons': True
+        })
+
+    def _loading_animation(self):
+        self.message_display.loading_animation(self.loading_animation_step)
+        self.loading_animation_step += 1
+
+    def _update_text_edit(self, text):
+        self.message_display.append_text(text)
+
+    def _show_error_message(self, message):
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setText(message)
+        msg_box.setWindowTitle("错误")
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.exec()
+
+    def update_frame(self, original_frame, yolo_frame, midas_frame):
+        self._display_image(self.ui_builder.video_original, original_frame)
+        self._display_image(self.ui_builder.video_yolo, yolo_frame)
+        self._display_image(self.ui_builder.video_midas, midas_frame)
+
+    def _display_image(self, label, frame):
+        if frame is None:
+            label.clear()
+            return
+        height, width, channel = frame.shape
+        bytes_per_line = 3 * width
+        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
+        label.setPixmap(QPixmap.fromImage(q_img).scaled(label.size(), Qt.AspectRatioMode.KeepAspectRatio))
+
+    def on_processing_stopped(self):
+        self.camera_processor = None
+
+
+
+    def _on_connect(self):
+        print('连接按钮被点击了！')
+
+
+    def _on_disconnect(self):
+        print('断开按钮被点击了！')
+
+
     def _on_load_model(self):
         if self.model_loading_in_progress:  # Check if model loading is already in progress
             return
@@ -89,85 +156,35 @@ class Functionality(QObject):
         self.model_loader.start()
         self.loading_animation_timer.start(500)
 
-    def _get_selected_model_name(self):
-        if self.ui_builder.radioButton_midas_small.isChecked():
-            return 'MiDaS_small'
-        elif self.ui_builder.radioButton_midas_hybrid.isChecked():
-            return 'MiDaS_hybrid'
-        else:
-            return 'DPT_Large'
-
-    def _update_text_edit(self, text):
-        self.message_display.append_text(text)
-
-    def _set_model(self, midas, midas_transforms):
-        self.midas = midas
-        self.midas_transforms = midas_transforms
-        self.loading_animation_timer.stop()
-        final_message = "\nMiDaS model loaded successfully." if self.midas else "\nFailed to load MiDaS model."
-        self.message_display.append_text(final_message)
-        self.model_loading_in_progress = False  # Reset the flag
-
-        self._set_controls_enabled({
-            'launch': True,
-            'stop': True,
-            'load_model': True,
-            'connect': True,
-            'disconnect': True,
-            'radio_buttons': True
-        })
-
-    def _loading_animation(self):
-        self.message_display.loading_animation(self.loading_animation_step)
-        self.loading_animation_step += 1
-
-    def _on_connect(self):
-        print('连接按钮被点击了！')
-
-    def _on_disconnect(self):
-        print('断开按钮被点击了！')
 
     def _on_launch(self):
         if not self.midas:
-            self.show_error_message("Model not loaded. Please load a model first.")
+            self._show_error_message("Model not loaded. Please load a model first.")
             return
 
         if self.camera_processor is None or not self.camera_processor.isRunning():
             self.camera_processor = CameraProcessor(self.midas, self.midas_transforms)
             self.camera_processor.frameCaptured.connect(self.update_frame)
             self.camera_processor.processingStopped.connect(self.on_processing_stopped)
-            self.camera_processor.errorOccurred.connect(self.show_error_message)
+            self.camera_processor.errorOccurred.connect(self._show_error_message)
             self.camera_processor.start()
+
 
     def _on_stop(self):
         if self.camera_processor is not None and self.camera_processor.isRunning():
             self.camera_processor.stop()
 
-    def on_processing_stopped(self):
-        self.camera_processor = None
 
-    def show_error_message(self, message):
-        msg_box = QMessageBox()
-        msg_box.setIcon(QMessageBox.Critical)
-        msg_box.setText(message)
-        msg_box.setWindowTitle("错误")
-        msg_box.setStandardButtons(QMessageBox.Ok)
-        msg_box.exec()
+    def _cleanup(self):
+        if self.camera_processor is not None and self.camera_processor.isRunning():
+            self.camera_processor.stop()
+            self.camera_processor.wait()
+        if self.model_loader is not None and self.model_loader.isRunning():
+            self.model_loader.quit()
+            self.model_loader.wait()
+        print("Cleaned up resources.")
 
-    def update_frame(self, original_frame, midas_frame):
-        self._display_image(self.ui_builder.video_original, original_frame)
-        self._display_image(self.ui_builder.video_yolo, original_frame)
-        self._display_image(self.ui_builder.video_midas, midas_frame)
-
-    def _display_image(self, label, frame):
-        if frame is None:
-            label.clear()
-            return
-        height, width, channel = frame.shape
-        bytes_per_line = 3 * width
-        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
-        label.setPixmap(QPixmap.fromImage(q_img).scaled(label.size(), Qt.AspectRatioMode.KeepAspectRatio))
-
+    
     def __del__(self):
         if self.model_loader is not None:
             self.model_loader.quit()
