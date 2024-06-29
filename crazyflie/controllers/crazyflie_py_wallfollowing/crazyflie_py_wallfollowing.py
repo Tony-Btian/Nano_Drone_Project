@@ -20,6 +20,7 @@ Author:   Kimberly McGuire (Bitcraze AB)
 """
 
 import cv2
+import numpy as np
 
 from controller import Robot
 from controller import Keyboard
@@ -169,8 +170,36 @@ if __name__ == '__main__':
 
         height_desired += height_diff_desired * dt
 
+        # Converting images to NumPy arrays
         camera_data = camera.getImage()
+        
+        # 打印图像原始数据类型和大小
+        width = camera.getWidth()
+        height = camera.getHeight()
+        image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
+        
+        # 去掉alpha通道，确保图像为RGB格式
+        image_array = image_array[:, :, :3]
+        
+        # 确保图像数组的形状为(height, width, 3)
+        if image_array.shape[2] == 3:
 
+            # 处理图像
+            display_image = image_array
+            display_image_2 = image_array
+            
+            # 显示图像
+            cv2.imshow('Camera Image', display_image)
+            # 显示图像
+            cv2.imshow('Camera Image2', display_image_2)
+
+            # 处理键盘事件
+            if cv2.waitKey(1) & 0xFF == ord('c'):
+                break
+            
+        else:
+            print("Image array does not have 3 channels after removing alpha channel")
+        
         # get range in meters
         range_front_value = range_front.getValue() / 1000
         range_right_value = range_right.getValue() / 1000
@@ -205,3 +234,4 @@ if __name__ == '__main__':
         past_time = robot.getTime()
         past_x_global = x_global
         past_y_global = y_global
+    cv2.destroyAllWindows()
