@@ -21,6 +21,7 @@ Author:   Kimberly McGuire (Bitcraze AB)
 
 import cv2
 import numpy as np
+import torch
 
 from controller import Robot
 from controller import Keyboard
@@ -29,8 +30,65 @@ from math import cos, sin
 
 from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
+from ultralytics import YOLO
 
 FLYING_ATTITUDE = 1
+
+# 检查CUDA是否可用
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Using device: {device}")
+
+# 验证CUDA可用性
+if torch.cuda.is_available():
+    print(f"CUDA device count: {torch.cuda.device_count()}")
+    for i in range(torch.cuda.device_count()):
+        print(f"CUDA device {i}: {torch.cuda.get_device_name(i)}")
+else:
+    print("CUDA is not available. Switching to CPU.")
+
+
+# 加载YOLOv5模型
+try:
+    yolo_model = YOLO('yolov8s.pt')
+except Exception as e:
+    print(f"Error loading YOLOv5 model: {e}")
+
+
+# 加载Midas深度估计模型
+try:
+    midas = torch.hub.load('intel-isl/MiDaS', 'DPT_Large', pretrained=True).to(device)
+    midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
+    print("MiDaS model loaded successfully.")
+except Exception as e:
+    print(f"Error loading MiDaS model: {e}")
+
+
+def objects_detect(image_array):
+    object_detection = yolo_model(image_array)
+    yolo_display = object_detection[0].plot()
+    return yolo_display
+
+
+def estimate_depth(camera_image):
+    # 将图像转换为Midas模型的输入格式
+    transform = midas_transforms.dpt_transform
+    input_batch = transform(camera_image).to(device)
+
+    # 进行深度估计
+    with torch.no_grad():
+        prediction = midas(input_batch)
+        prediction = torch.nn.functional.interpolate(
+            prediction.unsqueeze(1),
+            size = camera_image.shape[:2],
+            mode = 'bicubic',
+            align_corners=False,
+        ).squeeze()
+    
+    depth_map = prediction.cpu().numpy()
+    depth_map = cv2.normalize(depth_map, None, 0, 255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
+    return depth_map
+
 
 if __name__ == '__main__':
 
@@ -74,7 +132,6 @@ if __name__ == '__main__':
     keyboard.enable(timestep)
 
     # Initialize variables
-
     past_x_global = 0
     past_y_global = 0
     past_time = 0
@@ -99,10 +156,10 @@ if __name__ == '__main__':
     print(" The Crazyflie can be controlled from your keyboard!\n")
     print(" All controllable movement is in body coordinates\n")
     print("- Use the up, back, right and left button to move in the horizontal plane\n")
-    print("- Use Q and E to rotate around yaw\n ")
-    print("- Use W and S to go up and down\n ")
+    print("- Use Q and E to rotate around yaw\n")
+    print("- Use W and S to go up and down\n")
     print("- Press A to start autonomous mode\n")
-    print("- Press D to disable autonomous mode\n")
+    print("- Press D to disable autonomous mode\n ")
 
     # Main loop:
     while robot.step(timestep) != -1:
@@ -184,14 +241,21 @@ if __name__ == '__main__':
         # 确保图像数组的形状为(height, width, 3)
         if image_array.shape[2] == 3:
 
-            # 处理图像
+            # 显示图像
             display_image = image_array
-            display_image_2 = image_array
-            
-            # 显示图像
-            cv2.imshow('Camera Image', display_image)
-            # 显示图像
-            cv2.imshow('Camera Image2', display_image_2)
+
+            # 使用 YOLO 处理图像
+            yolo_display = objects_detect(image_array)
+
+            # 使用 MiDas 处理图像
+            depth_display = estimate_depth(image_array)
+
+            # 创建双视图图像
+            combined_frame = cv2.hconcat([yolo_display, depth_display])
+
+
+             # 显示图像
+            cv2.imshow('Camera Image', combined_frame)
 
             # 处理键盘事件
             if cv2.waitKey(1) & 0xFF == ord('c'):
