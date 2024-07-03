@@ -56,7 +56,7 @@ except Exception as e:
 
 # 加载Midas深度估计模型
 try:
-    midas = torch.hub.load('intel-isl/MiDaS', 'DPT_Large', pretrained=True).to(device)
+    midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small', pretrained=True).to(device)
     midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
     print("MiDaS model loaded successfully.")
 except Exception as e:
@@ -88,6 +88,37 @@ def estimate_depth(camera_image):
     depth_map = cv2.normalize(depth_map, None, 0, 255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
     return depth_map
+
+
+def filter_depth_image(depth_image, method='gaussian'):
+    if method == 'gaussian':
+        return cv2.GaussianBlur(depth_image, (5, 5), 0)
+    elif method == 'median':
+        return cv2.medianBlur(depth_image, 5)
+    elif method == 'bilateral':
+        return cv2.bilateralFilter(depth_image, 9, 75, 75)
+    elif method == 'mean':
+        return cv2.blur(depth_image, (5, 5))
+    else:
+        raise ValueError("Unsupported filtering method")
+
+
+def sobel_edge_detection(depth_image):
+    # 转换为灰度图像
+    gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
+
+    # 计算x方向和y方向的梯度
+    grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+
+    # 计算梯度幅值
+    grad = cv2.magnitude(grad_x, grad_y)
+
+    # 归一化并转换为8位图像
+    grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX)
+    grad = np.uint8(grad)
+    
+    return grad
 
 
 if __name__ == '__main__':
@@ -137,6 +168,19 @@ if __name__ == '__main__':
     past_time = 0
     first_time = True
 
+    # 准备棋盘格尺寸
+    chessboard_size = (9, 6)
+    square_size = 1.0  # 每个方块的实际大小
+
+    # 准备世界坐标
+    objp = np.zeros((np.prod(chessboard_size), 3), dtype=np.float32)
+    objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1, 2)
+    objp *= square_size
+
+    # 存储棋盘格角点
+    obj_points = []  # 3D 点
+    img_points = []  # 2D 图像点
+
     # Crazyflie velocity PID controller
     PID_crazyflie = pid_velocity_fixed_height_controller()
     PID_update_last_time = robot.getTime()
@@ -148,6 +192,9 @@ if __name__ == '__main__':
                                    max_forward_speed=0.3, init_state=WallFollowing.StateWallFollowing.FORWARD)
 
     autonomous_mode = False
+    image_process_mode = False
+    yolo_process_mode = False
+    depth_process_mode = False
 
     print("\n")
 
@@ -160,6 +207,7 @@ if __name__ == '__main__':
     print("- Use W and S to go up and down\n")
     print("- Press A to start autonomous mode\n")
     print("- Press D to disable autonomous mode\n ")
+
 
     # Main loop:
     while robot.step(timestep) != -1:
@@ -223,46 +271,68 @@ if __name__ == '__main__':
                 if autonomous_mode is True:
                     autonomous_mode = False
                     print("Autonomous mode: OFF")
+            elif key == ord('N'):
+                if image_process_mode is False:
+                    image_process_mode = True
+                    print("Image process mode: ON")
+            elif key == ord('M'):
+                if image_process_mode is True:
+                    image_process_mode = False
+                    print("Image process mode: OFF")
             key = keyboard.getKey()
 
         height_desired += height_diff_desired * dt
 
         # Converting images to NumPy arrays
         camera_data = camera.getImage()
+
+        if image_process_mode:
+            # 打印图像原始数据类型和大小
+            width = camera.getWidth()
+            height = camera.getHeight()
+            image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
         
-        # 打印图像原始数据类型和大小
-        width = camera.getWidth()
-        height = camera.getHeight()
-        image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
+            # 去掉alpha通道，确保图像为RGB格式
+            image_array = image_array[:, :, :3]
         
-        # 去掉alpha通道，确保图像为RGB格式
-        image_array = image_array[:, :, :3]
-        
-        # 确保图像数组的形状为(height, width, 3)
-        if image_array.shape[2] == 3:
+            # 确保图像数组的形状为(height, width, 3)
+            if image_array.shape[2] == 3:
 
-            # 显示图像
-            display_image = image_array
+                # 显示图像
+                # display_image = image_array
 
-            # 使用 YOLO 处理图像
-            yolo_display = objects_detect(image_array)
+                # 使用 YOLO 处理图像
+                yolo_display = objects_detect(image_array)
 
-            # 使用 MiDas 处理图像
-            depth_display = estimate_depth(image_array)
+                # 使用 MiDas 处理图像
+                depth_display = estimate_depth(image_array)
 
-            # 创建双视图图像
-            combined_frame = cv2.hconcat([yolo_display, depth_display])
+                # 对深度图进行处理
+                # 确认深度图格式和大小
+                print("Depth image dtype:", depth_display.dtype)
+                print("Depth image shape:", depth_display.shape)
+                print("Depth image min value:", np.min(depth_display))
+                print("Depth image max value:", np.max(depth_display))
+                print("Depth image mean value:", np.mean(depth_display))
+
+                gray_resized = cv2.resize(depth_display, (image_array.shape[1], image_array.shape[0]))
+                filtered_image = filter_depth_image(gray_resized, method='gaussian')
 
 
-             # 显示图像
-            cv2.imshow('Camera Image', combined_frame)
+                # 创建双视图图像
+                frame_top_row = cv2.hconcat([image_array, filtered_image])
+                frame_bottom_row = cv2.hconcat([yolo_display, depth_display])
+                quad_frame = cv2.vconcat([frame_top_row, frame_bottom_row])
 
-            # 处理键盘事件
-            if cv2.waitKey(1) & 0xFF == ord('c'):
-                break
-            
-        else:
-            print("Image array does not have 3 channels after removing alpha channel")
+                # 显示图像
+                cv2.imshow('Camera Image', quad_frame)
+
+                # 处理键盘事件
+                if cv2.waitKey(1) & 0xFF == ord('c'):
+                    break
+
+            else:
+                print("Image array does not have 3 channels after removing alpha channel")
         
         # get range in meters
         range_front_value = range_front.getValue() / 1000
