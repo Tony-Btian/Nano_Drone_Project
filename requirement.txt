@@ -6,7 +6,8 @@ matplotlib
 psutil
 pyqtgraph
 opencv-python
-torch --extra-index-url https://download.pytorch.org/whl/cu121
-torchvision --extra-index-url https://download.pytorch.org/whl/cu121
-torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
+torch
+torchvision
+torchaudio
 timm
+ultralytics

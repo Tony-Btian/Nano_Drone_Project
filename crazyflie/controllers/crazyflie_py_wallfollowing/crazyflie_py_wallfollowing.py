@@ -309,11 +309,11 @@ if __name__ == '__main__':
 
                 # 对深度图进行处理
                 # 确认深度图格式和大小
-                print("Depth image dtype:", depth_display.dtype)
-                print("Depth image shape:", depth_display.shape)
-                print("Depth image min value:", np.min(depth_display))
-                print("Depth image max value:", np.max(depth_display))
-                print("Depth image mean value:", np.mean(depth_display))
+                # print("Depth image dtype:", depth_display.dtype)
+                # print("Depth image shape:", depth_display.shape)
+                # print("Depth image min value:", np.min(depth_display))
+                # print("Depth image max value:", np.max(depth_display))
+                # print("Depth image mean value:", np.mean(depth_display))
 
                 gray_resized = cv2.resize(depth_display, (image_array.shape[1], image_array.shape[0]))
                 filtered_image = filter_depth_image(gray_resized, method='gaussian')
