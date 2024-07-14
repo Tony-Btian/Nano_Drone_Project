@@ -320,12 +320,10 @@ if __name__ == '__main__':
 
 
                 # 创建双视图图像
-                frame_top_row = cv2.hconcat([image_array, filtered_image])
-                frame_bottom_row = cv2.hconcat([yolo_display, depth_display])
-                quad_frame = cv2.vconcat([frame_top_row, frame_bottom_row])
+                trriple_viewer = cv2.hconcat([image_array, yolo_display, depth_display])
 
                 # 显示图像
-                cv2.imshow('Camera Image', quad_frame)
+                cv2.imshow('Camera Image', trriple_viewer)
 
                 # 处理键盘事件
                 if cv2.waitKey(1) & 0xFF == ord('c'):
