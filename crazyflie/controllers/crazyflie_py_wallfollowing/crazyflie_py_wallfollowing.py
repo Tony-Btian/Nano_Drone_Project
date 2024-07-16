@@ -25,9 +25,7 @@ import torch
 
 from controller import Robot
 from controller import Keyboard
-
 from math import cos, sin
-
 from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
@@ -90,6 +88,7 @@ def estimate_depth(camera_image):
     return depth_map
 
 
+# 图像滤波器
 def filter_depth_image(depth_image, method='gaussian'):
     if method == 'gaussian':
         return cv2.GaussianBlur(depth_image, (5, 5), 0)
@@ -103,6 +102,7 @@ def filter_depth_image(depth_image, method='gaussian'):
         raise ValueError("Unsupported filtering method")
 
 
+# Sobel算子进行边缘检测
 def sobel_edge_detection(depth_image):
     # 转换为灰度图像
     gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
@@ -119,6 +119,74 @@ def sobel_edge_detection(depth_image):
     grad = np.uint8(grad)
     
     return grad
+
+
+# Canny边缘检测
+def canny_edge_detection(depth_image):
+    gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
+    blurred = cv2.GaussianBlur(gray, (5, 5), 1.5)
+    edges = cv2.Canny(blurred, 50, 150)
+    return edges
+
+
+# def canny_edge_detection(depth_image):
+def detect_obstacles(depth_image, edge_image, depth_threshold=1.5):
+    # Normalize depth image to 0-255 range and convert to 8-bit
+    depth_image_normalized = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX)
+    depth_image_normalized = np.uint8(depth_image_normalized)
+
+    # Threshold the depth image to extract potential obstacle regions
+    _, thresholded_depth = cv2.threshold(depth_image_normalized, int(depth_threshold * 255 / np.max(depth_image)), 255, cv2.THRESH_BINARY_INV)
+    
+    # Ensure the edge image is 8-bit single-channel
+    if len(edge_image.shape) == 3:  # Check if the image has multiple channels
+        edge_image = cv2.cvtColor(edge_image, cv2.COLOR_BGR2GRAY)
+    
+    # Resize edge image to match the depth image if necessary
+    if edge_image.shape != thresholded_depth.shape:
+        edge_image = cv2.resize(edge_image, (thresholded_depth.shape[1], thresholded_depth.shape[0]))
+
+    # Convert edge image to the same type as thresholded depth image if necessary
+    if edge_image.dtype != thresholded_depth.dtype:
+        edge_image = edge_image.astype(thresholded_depth.dtype)
+    
+    # Bitwise AND operation with edge image
+    obstacle_edges = cv2.bitwise_and(thresholded_depth, edge_image)
+    
+    # Find contours
+    contours, _ = cv2.findContours(obstacle_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Draw contours
+    obstacle_image = cv2.cvtColor(depth_image_normalized, cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(obstacle_image, contours, -1, (0, 0, 255), 2)
+    
+    return obstacle_image, contours
+
+
+# 根据需要转换和调整图像
+def ensure_same_format(images):
+    # 确保所有图像具有相同的类型和行数
+    reference_shape = images[0].shape
+    reference_type = images[0].dtype
+    
+    formatted_images = []
+    for img in images:
+        # 将图像转换为相同类型
+        if img.dtype != reference_type:
+            img = img.astype(reference_type)
+        
+        # 如果是灰度图像，转换为BGR
+        if len(img.shape) == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        
+        # 调整大小以匹配行数
+        if img.shape[0] != reference_shape[0]:
+            img = cv2.resize(img, (reference_shape[1], reference_shape[0]))
+        
+        formatted_images.append(img)
+    
+    return formatted_images
+
 
 
 if __name__ == '__main__':
@@ -316,14 +384,30 @@ if __name__ == '__main__':
                 # print("Depth image mean value:", np.mean(depth_display))
 
                 gray_resized = cv2.resize(depth_display, (image_array.shape[1], image_array.shape[0]))
-                filtered_image = filter_depth_image(gray_resized, method='gaussian')
+                # filtered_image = filter_depth_image(gray_resized, method='gaussian')
+
+                # 边缘检测
+                edges_image = sobel_edge_detection(depth_display)  # Sobel 算子
+                # edges_image = canny_edge_detection(depth_display)  # Canny 算子
+
+                # Canny边缘检测
+
+                # 障碍物检测
+                depth_image = np.random.uniform(0, 2, (480, 640)).astype(np.float32)  # 替换为实际的深度图像
+                edge_image = np.random.randint(0, 256, (480, 640), dtype=np.uint8)
+
+                obstacle_image, contours = detect_obstacles(depth_image, edge_image)
 
 
-                # 创建双视图图像
-                trriple_viewer = cv2.hconcat([image_array, yolo_display, depth_display])
+                # 根据需要转换和调整图像
+                images = [image_array, depth_display, edges_image, obstacle_image]
+                formatted_images = ensure_same_format(images)
+
+                # 创建三视图图像
+                tripple_viewer = cv2.hconcat(formatted_images)
 
                 # 显示图像
-                cv2.imshow('Camera Image', trriple_viewer)
+                cv2.imshow('Camera Image', tripple_viewer)
 
                 # 处理键盘事件
                 if cv2.waitKey(1) & 0xFF == ord('c'):
