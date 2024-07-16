@@ -12,3 +12,4 @@ torchvision
 torchaudio
 timm
 ultralytics
+scikit-learn

@@ -186,64 +186,45 @@ if __name__ == '__main__':
         camera_data = camera.getImage()
 
         if image_process_mode:
-            # 打印图像原始数据类型和大小
+            # Print image raw data type and size
             width = camera.getWidth()
             height = camera.getHeight()
             image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
         
-            # 去掉alpha通道，确保图像为RGB格式
+            # Remove the alpha channel and make sure the image is in RGB format
             image_array = image_array[:, :, :3]
         
-            # 确保图像数组的形状为(height, width, 3)
             if image_array.shape[2] == 3:
+                # Processing images with YOLO
+                # yolo_display = Image_Processor.objects_detect(image_array)
 
-                # 显示图像
-                # display_image = image_array
+                # Image Processing with MiDas
+                depth_map = Image_Processor.estimate_depth(image_array)
+                filtered_image = Image_Processor.filter_depth_image(depth_map, method='gaussian')
 
-                # 使用 YOLO 处理图像
-                yolo_display = Image_Processor.objects_detect(image_array)
+                # Edge Detection
+                edges_image = Image_Processor.sobel_edge_detection(depth_map)
 
-                # 使用 MiDas 处理图像
-                depth_display = Image_Processor.estimate_depth(image_array)
+                # Object Detection
+                depth_map_preprocess = Image_Processor.preprocess_depth_map(depth_map, 10)
+                obstacle_mask = Image_Processor.detect_obstacles_gradient(depth_map_preprocess, 2)
+                position, size = Image_Processor.compute_obstacle_properties(obstacle_mask)
+                # print(f"Obstacle position: {position}")
+                # print(f"Obstacle size: {size}")
 
-                # 对深度图进行处理
-                # 确认深度图格式和大小
-                # print("Depth image dtype:", depth_display.dtype)
-                # print("Depth image shape:", depth_display.shape)
-                # print("Depth image min value:", np.min(depth_display))
-                # print("Depth image max value:", np.max(depth_display))
-                # print("Depth image mean value:", np.mean(depth_display))
-
-                gray_resized = cv2.resize(depth_display, (image_array.shape[1], image_array.shape[0]))
-                # filtered_image = filter_depth_image(gray_resized, method='gaussian')
-
-                # 边缘检测
-                edges_image = Image_Processor.sobel_edge_detection(depth_display)  # Sobel 算子
-                # edges_image = canny_edge_detection(depth_display)  # Canny 算子
-
-                # Canny边缘检测
-
-                # 障碍物检测
-                depth_image = np.random.uniform(0, 2, (480, 640)).astype(np.float32)  # 替换为实际的深度图像
-                edge_image = np.random.randint(0, 256, (480, 640), dtype=np.uint8)
-
-                obstacle_image, contours = Image_Processor.detect_obstacles(depth_image, edge_image)
-
-
-                # 根据需要转换和调整图像
-                images = [image_array, depth_display, edges_image, obstacle_image]
+                # Convert and adjust images as needed
+                images = [image_array, depth_map, edges_image]
                 formatted_images = Image_Processor.ensure_same_format(images)
 
-                # 创建三视图图像
+                # Creating a three-view image
                 tripple_viewer = cv2.hconcat(formatted_images)
 
-                # 显示图像
+                # Show image
                 cv2.imshow('Camera Image', tripple_viewer)
 
-                # 处理键盘事件
+                # Handling Keyboard Events
                 if cv2.waitKey(1) & 0xFF == ord('c'):
                     break
-
             else:
                 print("Image array does not have 3 channels after removing alpha channel")
         
