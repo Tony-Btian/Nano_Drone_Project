@@ -21,7 +21,6 @@ Author:   Kimberly McGuire (Bitcraze AB)
 
 import cv2
 import numpy as np
-import torch
 
 from controller import Robot
 from controller import Keyboard
@@ -29,165 +28,9 @@ from math import cos, sin
 from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
+from image_processing import depth_estimation_and_object_recognition
 
 FLYING_ATTITUDE = 1
-
-# 检查CUDA是否可用
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Using device: {device}")
-
-# 验证CUDA可用性
-if torch.cuda.is_available():
-    print(f"CUDA device count: {torch.cuda.device_count()}")
-    for i in range(torch.cuda.device_count()):
-        print(f"CUDA device {i}: {torch.cuda.get_device_name(i)}")
-else:
-    print("CUDA is not available. Switching to CPU.")
-
-
-# 加载YOLOv5模型
-try:
-    yolo_model = YOLO('yolov8s.pt')
-except Exception as e:
-    print(f"Error loading YOLOv5 model: {e}")
-
-
-# 加载Midas深度估计模型
-try:
-    midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small', pretrained=True).to(device)
-    midas_transforms = torch.hub.load('intel-isl/MiDaS', 'transforms')
-    print("MiDaS model loaded successfully.")
-except Exception as e:
-    print(f"Error loading MiDaS model: {e}")
-
-
-def objects_detect(image_array):
-    object_detection = yolo_model(image_array)
-    yolo_display = object_detection[0].plot()
-    return yolo_display
-
-
-def estimate_depth(camera_image):
-    # 将图像转换为Midas模型的输入格式
-    transform = midas_transforms.dpt_transform
-    input_batch = transform(camera_image).to(device)
-
-    # 进行深度估计
-    with torch.no_grad():
-        prediction = midas(input_batch)
-        prediction = torch.nn.functional.interpolate(
-            prediction.unsqueeze(1),
-            size = camera_image.shape[:2],
-            mode = 'bicubic',
-            align_corners=False,
-        ).squeeze()
-    
-    depth_map = prediction.cpu().numpy()
-    depth_map = cv2.normalize(depth_map, None, 0, 255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
-    return depth_map
-
-
-# 图像滤波器
-def filter_depth_image(depth_image, method='gaussian'):
-    if method == 'gaussian':
-        return cv2.GaussianBlur(depth_image, (5, 5), 0)
-    elif method == 'median':
-        return cv2.medianBlur(depth_image, 5)
-    elif method == 'bilateral':
-        return cv2.bilateralFilter(depth_image, 9, 75, 75)
-    elif method == 'mean':
-        return cv2.blur(depth_image, (5, 5))
-    else:
-        raise ValueError("Unsupported filtering method")
-
-
-# Sobel算子进行边缘检测
-def sobel_edge_detection(depth_image):
-    # 转换为灰度图像
-    gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
-
-    # 计算x方向和y方向的梯度
-    grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-    grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-
-    # 计算梯度幅值
-    grad = cv2.magnitude(grad_x, grad_y)
-
-    # 归一化并转换为8位图像
-    grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX)
-    grad = np.uint8(grad)
-    
-    return grad
-
-
-# Canny边缘检测
-def canny_edge_detection(depth_image):
-    gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
-    blurred = cv2.GaussianBlur(gray, (5, 5), 1.5)
-    edges = cv2.Canny(blurred, 50, 150)
-    return edges
-
-
-# def canny_edge_detection(depth_image):
-def detect_obstacles(depth_image, edge_image, depth_threshold=1.5):
-    # Normalize depth image to 0-255 range and convert to 8-bit
-    depth_image_normalized = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX)
-    depth_image_normalized = np.uint8(depth_image_normalized)
-
-    # Threshold the depth image to extract potential obstacle regions
-    _, thresholded_depth = cv2.threshold(depth_image_normalized, int(depth_threshold * 255 / np.max(depth_image)), 255, cv2.THRESH_BINARY_INV)
-    
-    # Ensure the edge image is 8-bit single-channel
-    if len(edge_image.shape) == 3:  # Check if the image has multiple channels
-        edge_image = cv2.cvtColor(edge_image, cv2.COLOR_BGR2GRAY)
-    
-    # Resize edge image to match the depth image if necessary
-    if edge_image.shape != thresholded_depth.shape:
-        edge_image = cv2.resize(edge_image, (thresholded_depth.shape[1], thresholded_depth.shape[0]))
-
-    # Convert edge image to the same type as thresholded depth image if necessary
-    if edge_image.dtype != thresholded_depth.dtype:
-        edge_image = edge_image.astype(thresholded_depth.dtype)
-    
-    # Bitwise AND operation with edge image
-    obstacle_edges = cv2.bitwise_and(thresholded_depth, edge_image)
-    
-    # Find contours
-    contours, _ = cv2.findContours(obstacle_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Draw contours
-    obstacle_image = cv2.cvtColor(depth_image_normalized, cv2.COLOR_GRAY2BGR)
-    cv2.drawContours(obstacle_image, contours, -1, (0, 0, 255), 2)
-    
-    return obstacle_image, contours
-
-
-# 根据需要转换和调整图像
-def ensure_same_format(images):
-    # 确保所有图像具有相同的类型和行数
-    reference_shape = images[0].shape
-    reference_type = images[0].dtype
-    
-    formatted_images = []
-    for img in images:
-        # 将图像转换为相同类型
-        if img.dtype != reference_type:
-            img = img.astype(reference_type)
-        
-        # 如果是灰度图像，转换为BGR
-        if len(img.shape) == 2:
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-        
-        # 调整大小以匹配行数
-        if img.shape[0] != reference_shape[0]:
-            img = cv2.resize(img, (reference_shape[1], reference_shape[0]))
-        
-        formatted_images.append(img)
-    
-    return formatted_images
-
-
 
 if __name__ == '__main__':
 
@@ -236,19 +79,6 @@ if __name__ == '__main__':
     past_time = 0
     first_time = True
 
-    # 准备棋盘格尺寸
-    chessboard_size = (9, 6)
-    square_size = 1.0  # 每个方块的实际大小
-
-    # 准备世界坐标
-    objp = np.zeros((np.prod(chessboard_size), 3), dtype=np.float32)
-    objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1, 2)
-    objp *= square_size
-
-    # 存储棋盘格角点
-    obj_points = []  # 3D 点
-    img_points = []  # 2D 图像点
-
     # Crazyflie velocity PID controller
     PID_crazyflie = pid_velocity_fixed_height_controller()
     PID_update_last_time = robot.getTime()
@@ -264,10 +94,11 @@ if __name__ == '__main__':
     yolo_process_mode = False
     depth_process_mode = False
 
+    # Image Processor
+    Image_Processor = depth_estimation_and_object_recognition()
+
     print("\n")
-
     print("====== Controls =======\n\n")
-
     print(" The Crazyflie can be controlled from your keyboard!\n")
     print(" All controllable movement is in body coordinates\n")
     print("- Use the up, back, right and left button to move in the horizontal plane\n")
@@ -370,10 +201,10 @@ if __name__ == '__main__':
                 # display_image = image_array
 
                 # 使用 YOLO 处理图像
-                yolo_display = objects_detect(image_array)
+                yolo_display = Image_Processor.objects_detect(image_array)
 
                 # 使用 MiDas 处理图像
-                depth_display = estimate_depth(image_array)
+                depth_display = Image_Processor.estimate_depth(image_array)
 
                 # 对深度图进行处理
                 # 确认深度图格式和大小
@@ -387,7 +218,7 @@ if __name__ == '__main__':
                 # filtered_image = filter_depth_image(gray_resized, method='gaussian')
 
                 # 边缘检测
-                edges_image = sobel_edge_detection(depth_display)  # Sobel 算子
+                edges_image = Image_Processor.sobel_edge_detection(depth_display)  # Sobel 算子
                 # edges_image = canny_edge_detection(depth_display)  # Canny 算子
 
                 # Canny边缘检测
@@ -396,12 +227,12 @@ if __name__ == '__main__':
                 depth_image = np.random.uniform(0, 2, (480, 640)).astype(np.float32)  # 替换为实际的深度图像
                 edge_image = np.random.randint(0, 256, (480, 640), dtype=np.uint8)
 
-                obstacle_image, contours = detect_obstacles(depth_image, edge_image)
+                obstacle_image, contours = Image_Processor.detect_obstacles(depth_image, edge_image)
 
 
                 # 根据需要转换和调整图像
                 images = [image_array, depth_display, edges_image, obstacle_image]
-                formatted_images = ensure_same_format(images)
+                formatted_images = Image_Processor.ensure_same_format(images)
 
                 # 创建三视图图像
                 tripple_viewer = cv2.hconcat(formatted_images)

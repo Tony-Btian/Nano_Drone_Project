@@ -1,6 +1,7 @@
 PySide6
 setuptools
 numpy==1.26.4
+controller
 pandas
 matplotlib
 psutil
