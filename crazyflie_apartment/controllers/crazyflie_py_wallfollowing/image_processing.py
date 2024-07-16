@@ -119,15 +119,23 @@ class depth_estimation_and_object_recognition():
 
     # Calculate the Location and Size of Obstacles
     def compute_obstacle_properties(slef, obstacle_mask):
+        # 检查 obstacle_mask 的维度
+        print(f"obstacle_mask shape: {obstacle_mask.shape}")
+
+        # 如果 obstacle_mask 是高维的，调整为二维
+        if obstacle_mask.ndim > 2:
+            obstacle_mask = np.any(obstacle_mask, axis=tuple(range(2, obstacle_mask.ndim)))
+
         y_indices, x_indices = np.nonzero(obstacle_mask)
-        centroid_x = np.mean(x_indices)
-        centroid_y = np.mean(y_indices)
-        min_x, max_x = np.min(x_indices), np.max(x_indices)
-        min_y, max_y = np.min(y_indices), np.max(y_indices)
-        width = max_x - min_x
-        height = max_y - min_y
-        return (centroid_x, centroid_y), (width, height)
-    
+
+        if len(y_indices) == 0 or len(x_indices) == 0:
+            raise ValueError("No obstacles found in the given mask.")
+
+        position = (int(np.mean(y_indices)), int(np.mean(x_indices)))
+        size = (int(np.ptp(y_indices)), int(np.ptp(x_indices)))
+
+        return position, size
+
 
     # -------------- Graphics Processing Tools ---------------- #
     # Image filters

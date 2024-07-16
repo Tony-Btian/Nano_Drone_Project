@@ -69,6 +69,29 @@ if __name__ == '__main__':
     range_right = robot.getDevice("range_right")
     range_right.enable(timestep)
 
+    # Getting the Camera's Parameters
+    focal_length = camera.getFocalLength()
+    print(f"Focal Length: {focal_length}")
+    fov = camera.getFov()
+    width = camera.getWidth()
+    height = camera.getHeight()
+
+    # Calculate the Internal Reference Matrix
+    cx = width / 2.0
+    cy = height / 2.0
+
+    # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
+    fx = focal_length * width / (2 * np.tan(fov / 2.0))
+    fy = fx  # 对于正方形像素，fy=fx
+
+    K = np.array([
+        [fx, 0, cx],
+        [0, fy, cy],
+        [0,  0,  1]
+    ])
+
+    print("内参矩阵 (Intrinsic Matrix):\n", K)
+
     # Get keyboard
     keyboard = Keyboard()
     keyboard.enable(timestep)
@@ -187,8 +210,6 @@ if __name__ == '__main__':
 
         if image_process_mode:
             # Print image raw data type and size
-            width = camera.getWidth()
-            height = camera.getHeight()
             image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
         
             # Remove the alpha channel and make sure the image is in RGB format
@@ -206,9 +227,9 @@ if __name__ == '__main__':
                 edges_image = Image_Processor.sobel_edge_detection(depth_map)
 
                 # Object Detection
-                depth_map_preprocess = Image_Processor.preprocess_depth_map(depth_map, 10)
-                obstacle_mask = Image_Processor.detect_obstacles_gradient(depth_map_preprocess, 2)
-                position, size = Image_Processor.compute_obstacle_properties(obstacle_mask)
+                # depth_map_preprocess = Image_Processor.preprocess_depth_map(depth_map, 10)
+                # obstacle_mask = Image_Processor.detect_obstacles_gradient(depth_map_preprocess, 2)
+                # position, size = Image_Processor.compute_obstacle_properties(obstacle_mask)
                 # print(f"Obstacle position: {position}")
                 # print(f"Obstacle size: {size}")
 
