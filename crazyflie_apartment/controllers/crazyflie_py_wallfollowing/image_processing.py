@@ -58,10 +58,10 @@ class depth_estimation_and_object_recognition():
                 align_corners=False,
             ).squeeze()
         
-        depth_map = prediction.cpu().numpy()
-        depth_map = cv2.normalize(depth_map, None, 0, 255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        depth_value = prediction.cpu().numpy()
+        depth_map = cv2.normalize(depth_value, None, 0, 255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
-        return depth_map
+        return depth_value, depth_map
     
     
     # Sobel Operator for Edge Detection
@@ -84,11 +84,40 @@ class depth_estimation_and_object_recognition():
     
 
     # -------------- Handle Obstacle Detection ---------------- #
-    # Preprocessing Depth Chart
-    def preprocess_depth_map(slef, depth_map, max_distance):
-        depth_map = depth_map.astype(np.float32)
-        depth_map[depth_map > max_distance] = np.inf
-        return cv2.medianBlur(depth_map, 5)
+    def depth_to_point_cloud(self, depth_image, K):
+        # 假设内参矩阵K
+        fx, fy = K[0, 0], K[1, 1]
+        cx, cy = K[0, 2], K[1, 2]
+        height, width = depth_image.shape
+
+        i, j = np.indices((height, width))
+        z = depth_image
+        x = (j - cx) * z / fx
+        y = (i - cy) * z / fy
+
+        point_cloud = np.stack((x, y, z), axis=-1).reshape(-1, 3)
+        return point_cloud
+    
+
+    # Clustering-based Obstacle Detection
+    def detect_obstacles_clustering(self, point_cloud, eps=0.5, min_samples=10):
+        # 确保点云是二维数组
+        if len(point_cloud.shape) == 1:
+            raise ValueError("Point cloud must be a 2D array with shape (N, 3)")
+        # 应用DBSCAN聚类算法
+        clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(point_cloud.reshape(-1, 3))
+        labels = clustering.labels_
+        unique_labels = set(labels)
+        obstacles = []
+
+        for label in unique_labels:
+            if label == -1:  # 噪声点
+                continue
+            obstacle_points = point_cloud[labels == label]
+            centroid = np.mean(obstacle_points, axis=0)
+            obstacles.append(centroid)
+            
+        return obstacles
 
 
     # Compute the Gradient of the Depth Map
@@ -101,20 +130,6 @@ class depth_estimation_and_object_recognition():
         # 梯度大于阈值的区域被认为是障碍物
         obstacle_mask = grad > grad_threshold
         return obstacle_mask
-    
-
-    # Clustering-based Obstacle Detection
-    def detect_obstacles_clustering(self, depth_map, min_samples):
-        # 将深度图转换为点云
-        points = np.column_stack(np.nonzero(depth_map < np.inf))
-        distances = depth_map[points[:, 0], points[:, 1]]
-        points = np.column_stack((points, distances))
-        
-        # 使用DBSCAN进行聚类
-        clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(points)
-        labels = clustering.labels_
-        
-        return labels
     
 
     # Calculate the Location and Size of Obstacles
@@ -141,7 +156,7 @@ class depth_estimation_and_object_recognition():
     # Image filters
     def filter_depth_image(self, depth_image, method='gaussian'):
         if method == 'gaussian':
-            return cv2.GaussianBlur(depth_image, (5, 5), 0)
+            return cv2.GaussianBlur(depth_image, (5, 5), 1)
         elif method == 'median':
             return cv2.medianBlur(depth_image, 5)
         elif method == 'bilateral':

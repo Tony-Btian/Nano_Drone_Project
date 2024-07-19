@@ -70,27 +70,30 @@ if __name__ == '__main__':
     range_right.enable(timestep)
 
     # Getting the Camera's Parameters
-    focal_length = camera.getFocalLength()
-    print(f"Focal Length: {focal_length}")
-    fov = camera.getFov()
     width = camera.getWidth()
     height = camera.getHeight()
+    fov = camera.getFov()  # Field of View
+    near = camera.getNear()
 
     # Calculate the Internal Reference Matrix
     cx = width / 2.0
     cy = height / 2.0
 
     # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
-    fx = focal_length * width / (2 * np.tan(fov / 2.0))
+    fx = width / (2 * np.tan(fov / 2.0)) # Focal Length
     fy = fx  # 对于正方形像素，fy=fx
-
     K = np.array([
         [fx, 0, cx],
         [0, fy, cy],
         [0,  0,  1]
     ])
 
-    print("内参矩阵 (Intrinsic Matrix):\n", K)
+    print("Camera intrinsic matrix:", K)
+    print("Focal length:", fx)
+    print("Width:", width)
+    print("Height:", height)
+    print("Field of View:", fov)
+    print("Near:", near)
 
     # Get keyboard
     keyboard = Keyboard()
@@ -109,8 +112,10 @@ if __name__ == '__main__':
 
     height_desired = FLYING_ATTITUDE
 
-    wall_following = WallFollowing(angle_value_buffer=0.01, reference_distance_from_wall=0.5,
-                                   max_forward_speed=0.3, init_state=WallFollowing.StateWallFollowing.FORWARD)
+    wall_following = WallFollowing(angle_value_buffer=0.01, 
+                                   reference_distance_from_wall=0.5,
+                                   max_forward_speed=0.3, 
+                                   init_state=WallFollowing.StateWallFollowing.FORWARD)
 
     autonomous_mode = False
     image_process_mode = False
@@ -211,43 +216,40 @@ if __name__ == '__main__':
         if image_process_mode:
             # Print image raw data type and size
             image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
-        
+            
             # Remove the alpha channel and make sure the image is in RGB format
             image_array = image_array[:, :, :3]
         
-            if image_array.shape[2] == 3:
-                # Processing images with YOLO
-                # yolo_display = Image_Processor.objects_detect(image_array)
+            # Processing images with YOLO
+            # yolo_display = Image_Processor.objects_detect(image_array)
 
-                # Image Processing with MiDas
-                depth_map = Image_Processor.estimate_depth(image_array)
-                filtered_image = Image_Processor.filter_depth_image(depth_map, method='gaussian')
+            # Image Processing with MiDas
+            depth_value, depth_map = Image_Processor.estimate_depth(image_array)
 
-                # Edge Detection
-                edges_image = Image_Processor.sobel_edge_detection(depth_map)
+            # Image pre-processing (filtering, noise reduction)
+            filtered_image = Image_Processor.filter_depth_image(depth_value, method='gaussian')
 
-                # Object Detection
-                # depth_map_preprocess = Image_Processor.preprocess_depth_map(depth_map, 10)
-                # obstacle_mask = Image_Processor.detect_obstacles_gradient(depth_map_preprocess, 2)
-                # position, size = Image_Processor.compute_obstacle_properties(obstacle_mask)
-                # print(f"Obstacle position: {position}")
-                # print(f"Obstacle size: {size}")
+            # Edge Detection    
+            edges_image = Image_Processor.sobel_edge_detection(filtered_image)
 
-                # Convert and adjust images as needed
-                images = [image_array, depth_map, edges_image]
-                formatted_images = Image_Processor.ensure_same_format(images)
+            # Obstacle Detection
+            point_cloud = Image_Processor.depth_to_point_cloud(filtered_image, K)
 
-                # Creating a three-view image
-                tripple_viewer = cv2.hconcat(formatted_images)
 
-                # Show image
-                cv2.imshow('Camera Image', tripple_viewer)
+            # Convert and adjust images as needed
+            images = [image_array, depth_map, filtered_image, edges_image]
+            formatted_images = Image_Processor.ensure_same_format(images)
 
-                # Handling Keyboard Events
-                if cv2.waitKey(1) & 0xFF == ord('c'):
-                    break
-            else:
-                print("Image array does not have 3 channels after removing alpha channel")
+            # Creating a three-view image
+            tripple_viewer = cv2.hconcat(formatted_images)
+
+            # Show image
+            cv2.imshow('Camera Image', tripple_viewer)
+
+            # Handling Keyboard Events
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
         
         # get range in meters
         range_front_value = range_front.getValue() / 1000
@@ -283,4 +285,5 @@ if __name__ == '__main__':
         past_time = robot.getTime()
         past_x_global = x_global
         past_y_global = y_global
+
     cv2.destroyAllWindows()
