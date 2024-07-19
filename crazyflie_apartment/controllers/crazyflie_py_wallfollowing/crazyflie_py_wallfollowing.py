@@ -29,6 +29,7 @@ from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
 from image_processing import depth_estimation_and_object_recognition
+from waypoint_navigation import WaypointNavigation
 
 FLYING_ATTITUDE = 1
 
@@ -69,32 +70,6 @@ if __name__ == '__main__':
     range_right = robot.getDevice("range_right")
     range_right.enable(timestep)
 
-    # Getting the Camera's Parameters
-    width = camera.getWidth()
-    height = camera.getHeight()
-    fov = camera.getFov()  # Field of View
-    near = camera.getNear()
-
-    # Calculate the Internal Reference Matrix
-    cx = width / 2.0
-    cy = height / 2.0
-
-    # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
-    fx = width / (2 * np.tan(fov / 2.0)) # Focal Length
-    fy = fx  # 对于正方形像素，fy=fx
-    K = np.array([
-        [fx, 0, cx],
-        [0, fy, cy],
-        [0,  0,  1]
-    ])
-
-    print("Camera intrinsic matrix:", K)
-    print("Focal length:", fx)
-    print("Width:", width)
-    print("Height:", height)
-    print("Field of View:", fov)
-    print("Near:", near)
-
     # Get keyboard
     keyboard = Keyboard()
     keyboard.enable(timestep)
@@ -124,6 +99,42 @@ if __name__ == '__main__':
 
     # Image Processor
     Image_Processor = depth_estimation_and_object_recognition()
+
+    # Getting the Camera's Parameters
+    width = camera.getWidth()
+    height = camera.getHeight()
+    fov = camera.getFov()  # Field of View
+    near = camera.getNear()
+
+    # Calculate the Internal Reference Matrix
+    cx = width / 2.0
+    cy = height / 2.0
+
+    # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
+    fx = width / (2 * np.tan(fov / 2.0)) # Focal Length
+    fy = fx  # 对于正方形像素，fy=fx
+    K = np.array([
+        [fx, 0, cx],
+        [0, fy, cy],
+        [0,  0,  1]
+    ])
+    # print("Camera intrinsic matrix:", K)
+    # print("Focal length:", fx)
+    # print("Width:", width)
+    # print("Height:", height)
+    # print("Field of View:", fov)
+    # print("Near:", near)
+
+    # Waypoint Initialize 
+    waypoints = [
+        (0.0, 0.0, 1.0),  # Starting Point
+        (1.0, 0.0, 1.0),  # Waypoint 1
+        (1.0, 1.0, 1.0),  # Waypoint 2
+        (0.0, 1.0, 1.0),  # Ending Point
+    ]
+
+    # Waypoint Controller
+    navigator = WaypointNavigation(waypoints)
 
     print("\n")
     print("====== Controls =======\n\n")
@@ -250,7 +261,7 @@ if __name__ == '__main__':
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-        
+        """
         # get range in meters
         range_front_value = range_front.getValue() / 1000
         range_right_value = range_right.getValue() / 1000
@@ -272,6 +283,37 @@ if __name__ == '__main__':
             yaw_desired = cmd_ang_w
 
         # PID velocity controller with fixed height
+        motor_power = PID_crazyflie.pid(dt, forward_desired, sideways_desired,
+                                        yaw_desired, height_desired,
+                                        roll, pitch, yaw_rate,
+                                        altitude, v_x, v_y)
+
+        m1_motor.setVelocity(-motor_power[0])
+        m2_motor.setVelocity(motor_power[1])
+        m3_motor.setVelocity(-motor_power[2])
+        m4_motor.setVelocity(motor_power[3])
+
+        past_time = robot.getTime()
+        past_x_global = x_global
+        past_y_global = y_global
+        """
+
+        # 获取当前航点的速度命令
+        if autonomous_mode:
+            current_pos = (x_global, y_global, altitude)
+            vx, vy, vz, all_waypoints_reached = navigator.compute_velocity_to_waypoint(current_pos)
+            if all_waypoints_reached:
+                # 所有航点到达后停止无人机
+                autonomous_mode = False
+                forward_desired = 0.0
+                sideways_desired = 0.0
+                yaw_desired = 0.0
+            else:
+                forward_desired = vx
+                sideways_desired = vy
+                height_diff_desired = vz - altitude
+
+        # PID 速度控制器（固定高度）
         motor_power = PID_crazyflie.pid(dt, forward_desired, sideways_desired,
                                         yaw_desired, height_desired,
                                         roll, pitch, yaw_rate,
