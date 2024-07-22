@@ -24,14 +24,18 @@ import numpy as np
 
 from controller import Robot
 from controller import Keyboard
+from controller import Supervisor
 from math import cos, sin
 from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
 from image_processing import depth_estimation_and_object_recognition
 from waypoint_navigation import WaypointNavigation
+from astart_planner import AStarPlanner
 
 FLYING_ATTITUDE = 1
+GRID_SIZE = 10
+DEPTH_THRESHOLD = 100
 
 if __name__ == '__main__':
 
@@ -103,21 +107,21 @@ if __name__ == '__main__':
     # Getting the Camera's Parameters
     width = camera.getWidth()
     height = camera.getHeight()
-    fov = camera.getFov()  # Field of View
-    near = camera.getNear()
+    # fov = camera.getFov()  # Field of View
+    # near = camera.getNear()
 
-    # Calculate the Internal Reference Matrix
-    cx = width / 2.0
-    cy = height / 2.0
+    # # Calculate the Internal Reference Matrix
+    # cx = width / 2.0
+    # cy = height / 2.0
 
-    # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
-    fx = width / (2 * np.tan(fov / 2.0)) # Focal Length
-    fy = fx  # 对于正方形像素，fy=fx
-    K = np.array([
-        [fx, 0, cx],
-        [0, fy, cy],
-        [0,  0,  1]
-    ])
+    # # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
+    # fx = width / (2 * np.tan(fov / 2.0)) # Focal Length
+    # fy = fx  # 对于正方形像素，fy=fx
+    # K = np.array([
+    #     [fx, 0, cx],
+    #     [0, fy, cy],
+    #     [0,  0,  1]
+    # ])
     # print("Camera intrinsic matrix:", K)
     # print("Focal length:", fx)
     # print("Width:", width)
@@ -126,15 +130,22 @@ if __name__ == '__main__':
     # print("Near:", near)
 
     # Waypoint Initialize 
-    waypoints = [
-        (0.0, 0.0, 1.0),  # Starting Point
-        (1.0, 0.0, 1.0),  # Waypoint 1
-        (1.0, 1.0, 1.0),  # Waypoint 2
-        (0.0, 1.0, 1.0),  # Ending Point
-    ]
+    # waypoints = [
+    #     (0.0, 0.0, 1.0),  # Starting Point
+    #     (1.0, 0.0, 1.0),  # Waypoint 1
+    #     (1.0, 1.0, 1.0),  # Waypoint 2
+    #     (0.0, 1.0, 1.0),  # Ending Point
+    # ]
 
-    # Waypoint Controller
-    navigator = WaypointNavigation(waypoints)
+    # Waypoint Controller Instantiation
+    # navigator = WaypointNavigation(waypoints)
+
+    # AStart Planner Instantiation
+    # navigator = AStarPlanner()
+
+    #    # Define start and goal positions in grid coordinates
+    start_pos = (0, 0)  # 定义起点
+    goal_pos = (9, 9)   # 定义终点，假设网格大小为10x10
 
     print("\n")
     print("====== Controls =======\n\n")
@@ -239,16 +250,16 @@ if __name__ == '__main__':
 
             # Image pre-processing (filtering, noise reduction)
             filtered_image = Image_Processor.filter_depth_image(depth_value, method='gaussian')
+            grid_map = Image_Processor.depth_to_grid(filtered_image, DEPTH_THRESHOLD, GRID_SIZE)
 
             # Edge Detection    
             edges_image = Image_Processor.sobel_edge_detection(filtered_image)
 
             # Obstacle Detection
-            point_cloud = Image_Processor.depth_to_point_cloud(filtered_image, K)
-
+            # point_cloud = Image_Processor.depth_to_point_cloud(filtered_image, K)
 
             # Convert and adjust images as needed
-            images = [image_array, depth_map, filtered_image, edges_image]
+            images = [image_array, depth_map, filtered_image, grid_map, edges_image]
             formatted_images = Image_Processor.ensure_same_format(images)
 
             # Creating a three-view image
@@ -281,23 +292,9 @@ if __name__ == '__main__':
             sideways_desired = cmd_vel_y
             forward_desired = cmd_vel_x
             yaw_desired = cmd_ang_w
-
-        # PID velocity controller with fixed height
-        motor_power = PID_crazyflie.pid(dt, forward_desired, sideways_desired,
-                                        yaw_desired, height_desired,
-                                        roll, pitch, yaw_rate,
-                                        altitude, v_x, v_y)
-
-        m1_motor.setVelocity(-motor_power[0])
-        m2_motor.setVelocity(motor_power[1])
-        m3_motor.setVelocity(-motor_power[2])
-        m4_motor.setVelocity(motor_power[3])
-
-        past_time = robot.getTime()
-        past_x_global = x_global
-        past_y_global = y_global
         """
 
+        """
         # 获取当前航点的速度命令
         if autonomous_mode:
             current_pos = (x_global, y_global, altitude)
@@ -312,6 +309,32 @@ if __name__ == '__main__':
                 forward_desired = vx
                 sideways_desired = vy
                 height_diff_desired = vz - altitude
+        """
+
+        # Autonomous mode handling
+        if autonomous_mode:
+            pathfinder = AStarPlanner(grid_map)
+
+            # Convert GPS coordinates to grid coordinates
+            start_x = int((x_global / GRID_SIZE) % grid_map.shape[0])
+            start_y = int((y_global / GRID_SIZE) % grid_map.shape[1])
+            goal_x, goal_y = goal_pos
+
+            path = pathfinder.a_star((start_x, start_y), (goal_x, goal_y))
+            if path:
+                next_move = path[1]
+                target_x, target_y = next_move
+                current_x, current_y = start_x, start_y
+                forward_desired = target_x - current_x
+                sideways_desired = target_y - current_y
+            else:
+                print("No valid path to goal.")
+                autonomous_mode = False
+                forward_desired = 0
+                sideways_desired = 0
+                yaw_desired = 0
+                height_diff_desired = 0
+
 
         # PID 速度控制器（固定高度）
         motor_power = PID_crazyflie.pid(dt, forward_desired, sideways_desired,

@@ -6,7 +6,6 @@ from sklearn.cluster import DBSCAN # type: ignore
 
 class depth_estimation_and_object_recognition():
     def __init__(self):
-
         # Check if CUDA is Available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
@@ -35,14 +34,14 @@ class depth_estimation_and_object_recognition():
     
 
     # -------------- Object Recognition and Depth Estimation ---------------- #
-    # Object Detection
+    # Object Detection 物体检测
     def objects_detect(self, image_array):
         object_detection = self.yolo_model(image_array)
         yolo_display = object_detection[0].plot()
         return yolo_display
     
 
-    # Depth Estimation
+    # Depth Estimation 深度估计
     def estimate_depth(self, camera_image):
         # Converting images to Midas model input format
         transform = self.midas_transforms.dpt_transform
@@ -80,7 +79,34 @@ class depth_estimation_and_object_recognition():
         grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX)
         grad = np.uint8(grad)
         
-        return grad   
+        return grad
+    
+    # Canny Operator for Edge Detection
+    # def canny_dege_detection(self, depth_image):
+    
+
+    # Convert a depth map to a grid map
+    def depth_to_grid(self, depth_map, threshold, grid_size):
+        """
+        将深度图转换为网格地图。
+        
+        :param depth_map: MiDas 输出的深度图
+        :param threshold: 深度阈值，小于该值视为障碍物
+        :param grid_size: 网格单元的大小
+        :return: 生成的网格地图
+        """
+        rows, cols = depth_map.shape
+        grid_rows = rows // grid_size
+        grid_cols = cols // grid_size
+        grid_map = np.zeros((grid_rows, grid_cols), dtype=int)
+        
+        for i in range(grid_rows):
+            for j in range(grid_cols):
+                grid_cell = depth_map[i*grid_size:(i+1)*grid_size, j*grid_size:(j+1)*grid_size]
+                if np.any(grid_cell < threshold):
+                    grid_map[i, j] = 1  # 标记为障碍物
+        
+        return grid_map
     
 
     # -------------- Handle Obstacle Detection ---------------- #
