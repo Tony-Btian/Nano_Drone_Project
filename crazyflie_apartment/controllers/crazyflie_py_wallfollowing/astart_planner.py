@@ -2,10 +2,11 @@ import heapq
 import numpy as np
 
 class AStarPlanner:
-    def __init__(self, grid):
+    def __init__(self, grid, max_speed=1.0):
         self.grid = grid
         self.rows = grid.shape[0]
         self.cols = grid.shape[1]
+        self.max_speed = max_speed  # 无人机的最大速度
 
 
     def heuristic(self, a, b):
@@ -43,7 +44,7 @@ class AStarPlanner:
                 return path
             
             for neighbor in self.get_neighbors(current):
-                tentative_g_score = g_score[current] + 1
+                tentative_g_score = g_score[current] + 1 / self.max_speed
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score

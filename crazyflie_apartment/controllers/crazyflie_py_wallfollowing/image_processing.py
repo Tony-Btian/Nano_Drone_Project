@@ -63,7 +63,7 @@ class depth_estimation_and_object_recognition():
         return depth_value, depth_map
     
     
-    # Sobel Operator for Edge Detection
+    # Sobel Operator for Edge Detection 边缘检测的Sobel算子
     def sobel_edge_detection(self, depth_image):
         # Convert to grayscale image
         gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
@@ -81,35 +81,41 @@ class depth_estimation_and_object_recognition():
         
         return grad
     
-    # Canny Operator for Edge Detection
+
+    # Canny Operator for Edge Detection 边缘检测的Canny算子
     # def canny_dege_detection(self, depth_image):
     
 
     # Convert a depth map to a grid map
     def depth_to_grid(self, depth_map, threshold, grid_size):
-        """
-        将深度图转换为网格地图。
-        
-        :param depth_map: MiDas 输出的深度图
-        :param threshold: 深度阈值，小于该值视为障碍物
-        :param grid_size: 网格单元的大小
-        :return: 生成的网格地图
-        """
         rows, cols = depth_map.shape
-        grid_rows = rows // grid_size
-        grid_cols = cols // grid_size
+        grid_rows = int(rows / grid_size)
+        grid_cols = int(cols / grid_size)
         grid_map = np.zeros((grid_rows, grid_cols), dtype=int)
+        
+        print("Depth map - min:", np.min(depth_map), "max:", np.max(depth_map), "mean:", np.mean(depth_map))
+        print("Grid size - rows:", grid_rows, "cols:", grid_cols)
+        
+        # 可视化深度图
+        depth_visual = cv2.normalize(depth_map, None, 0, 255, cv2.NORM_MINMAX)
+        depth_visual = np.uint8(depth_visual)
+        cv2.imshow('Depth Map', depth_visual)
+        
+        # 根据深度图的统计信息动态调整阈值
+        dynamic_threshold = max(threshold, np.mean(depth_map) * 0.5)
+        print("Dynamic threshold:", dynamic_threshold)
         
         for i in range(grid_rows):
             for j in range(grid_cols):
-                grid_cell = depth_map[i*grid_size:(i+1)*grid_size, j*grid_size:(j+1)*grid_size]
-                if np.any(grid_cell < threshold):
+                grid_cell = depth_map[int(i*grid_size):int((i+1)*grid_size), int(j*grid_size):int((j+1)*grid_size)]
+                if np.any(grid_cell < dynamic_threshold):
                     grid_map[i, j] = 1  # 标记为障碍物
+                    
         
         return grid_map
     
 
-    # -------------- Handle Obstacle Detection ---------------- #
+    # ---------------- Handle Obstacle Detection ---------------- #
     def depth_to_point_cloud(self, depth_image, K):
         # 假设内参矩阵K
         fx, fy = K[0, 0], K[1, 1]
