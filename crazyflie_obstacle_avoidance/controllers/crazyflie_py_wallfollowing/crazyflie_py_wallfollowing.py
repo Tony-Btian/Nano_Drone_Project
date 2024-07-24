@@ -29,6 +29,7 @@ from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
 from image_processing import depth_estimation_and_object_recognition
+from obstacle_avoidance import PointCloudVisualizer
 
 
 FLYING_ATTITUDE = 1
@@ -105,10 +106,34 @@ if __name__ == '__main__':
     # Getting the Camera's Parameters
     width = camera.getWidth()
     height = camera.getHeight()
+    fov = camera.getFov()  # Field of View
+    near = camera.getNear()
+
+    # Calculate the Internal Reference Matrix
+    cx = width / 2.0
+    cy = height / 2.0
+
+    # Assuming a Pixel Aspect Ratio of 1, the Focal Length is Converted to Pixel Units
+    fx = width / (2 * np.tan(fov / 2.0)) # Focal Length
+    fy = fx  # For square pixels, fy = fx
+    K = np.array([
+        [fx, 0, cx],
+        [0, fy, cy],
+        [0,  0,  1]
+    ])
+
+    visualizer = PointCloudVisualizer(K)
 
     # Define start and goal positions in grid coordinates
     start_pos = [-0.9009894214148105, -5.592220508161193, 1.0013359608992145]
     goal_pos = [-8.802181198436783, -0.9554684815717253, 1.0000519299181825]
+
+    # Define Environment Parameters
+    plane_size = (9.9, 6.6) # Flat dimensions (meters)
+    resolution = 0.1  # Size of each raster cell (meters)
+    map_size = (int(plane_size[0] / resolution), int(plane_size[1] / resolution))
+    slam_map = np.zeros(map_size)
+    
 
     print("\n")
     print("====== Controls =======\n\n")
@@ -141,7 +166,7 @@ if __name__ == '__main__':
         y_global = gps.getValues()[1]
         altitude = gps.getValues()[2]
         current_position = gps.getValues()
-        print("GPS Value", current_position)
+        # print("GPS Value", current_position)
 
         v_x_global = (x_global - past_x_global)/dt
         v_y_global = (y_global - past_y_global)/dt
@@ -215,10 +240,11 @@ if __name__ == '__main__':
             # Image pre-processing (filtering, noise reduction)
             filtered_image = image_processor.filter_depth_image(depth_value, method='gaussian')
             normalized = image_processor.normalize_depth_image(filtered_image)
-            edges_image = image_processor.sobel_edge_detection(normalized) # Edge Detection
+            point_cloud = image_processor.depth_to_point_cloud(normalized, K)
+            edges_map = image_processor.sobel_edge_detection(normalized) # Edge Detection
 
             # Creating a three-view image
-            images = [depth_map, normalized, edges_image]
+            images = [depth_map, normalized, edges_map]
             formatted_images = image_processor.ensure_same_format(images) # Convert and adjust images as needed
             tripple_viewer = cv2.hconcat(formatted_images)
             cv2.imshow('Camera Image', tripple_viewer) # Show image

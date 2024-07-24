@@ -10,6 +10,8 @@ Author: Binhan Tian (University of Glasgow)
 import cv2
 import torch
 import numpy as np
+import pyvista as pv
+
 from ultralytics import YOLO
 from sklearn.cluster import DBSCAN # type: ignore
 
@@ -46,6 +48,8 @@ class depth_estimation_and_object_recognition():
 
     # Object Detection 物体检测
     def objects_detect(self, image_array):
+        """
+        """
         object_detection = self.yolo_model(image_array)
         yolo_display = object_detection[0].plot()
         return yolo_display
@@ -53,6 +57,8 @@ class depth_estimation_and_object_recognition():
 
     # Depth Estimation 深度估计
     def estimate_depth(self, camera_image):
+        """
+        """
         # Converting images to Midas model input format
         transform = self.midas_transforms.dpt_transform
         input_batch = transform(camera_image).to(self.device)
@@ -101,24 +107,30 @@ class depth_estimation_and_object_recognition():
         return grad
     
 
-
     # ---------------- Handle Obstacle Detection ---------------- #
 
     # Point Cloud Transformation
     def depth_to_point_cloud(self, depth_map, K):
+        """
+        """
         # 假设内参矩阵K
         fx, fy = K[0, 0], K[1, 1]
         cx, cy = K[0, 2], K[1, 2]
         height, width = depth_map.shape
 
-        i, j = np.indices((height, width))
-        z = depth_map
+        # Create a grid of (i, j) coordinates
+        j, i = np.meshgrid(np.arange(width), np.arange(height))
+
+        z = depth_map.astype(np.float32)
+
         x = (j - cx) * z / fx
         y = (i - cy) * z / fy
 
-        point_cloud = np.stack((x, y, z), axis=-1).reshape(-1, 3)
+        # Stack and reshape to get the point cloud
+        point_cloud = np.dstack((x, y, z)).reshape(-1, 3)
+
         return point_cloud
-    
+
 
     # Clustering-based Obstacle Detection
     def detect_obstacles_clustering(self, point_cloud, eps=0.5, min_samples=10):
@@ -139,18 +151,6 @@ class depth_estimation_and_object_recognition():
             obstacles.append(centroid)
 
         return obstacles
-
-
-    # Compute the Gradient of the Depth Map
-    def detect_obstacles_gradient(self, depth_map, grad_threshold):
-        # 计算深度图的梯度
-        grad_x = cv2.Sobel(depth_map, cv2.CV_64F, 1, 0, ksize=5)
-        grad_y = cv2.Sobel(depth_map, cv2.CV_64F, 0, 1, ksize=5)
-        grad = np.sqrt(grad_x**2 + grad_y**2)
-        
-        # 梯度大于阈值的区域被认为是障碍物
-        obstacle_mask = grad > grad_threshold
-        return obstacle_mask
     
 
     # Calculate the Location and Size of Obstacles
@@ -173,36 +173,12 @@ class depth_estimation_and_object_recognition():
         return position, size
 
 
-    # Image Normalization
-    def normalize_depth_image(self, depth_map):
-        """
-        A normalized depth map that maps depth values to the range 0 to 1.
-            Parameters.
-        depth_image (numpy.ndarray): the input depth image.
-        Returns: the normalized depth image.
-        """
-        # Check if the input is empty
-        if depth_map is None:
-            raise ValueError("The input depth image is empty")
-
-        # Converting depth images to floating point types
-        depth_map = depth_map.astype(np.float32)
-
-        # Get the minimum and maximum values of the depth image
-        min_depth = np.min(depth_map)
-        max_depth = np.max(depth_map)
-        # Normalized depth map to the range 0 to 1
-        depth_map_normalized = (depth_map - min_depth) / (max_depth - min_depth)
-        depth_map_normalized_display = (depth_map_normalized * 255).astype(np.uint8)
-        
-        return depth_map_normalized_display
-
-
-
     # -------------- Graphics Processing Tools ---------------- #
 
     # Image filters
     def filter_depth_image(self, depth_image, method='gaussian'):
+        """
+        """
         if method == 'gaussian':
             return cv2.GaussianBlur(depth_image, (5, 5), 1)
         elif method == 'median':
@@ -217,6 +193,8 @@ class depth_estimation_and_object_recognition():
 
     # Image Format Harmonization
     def ensure_same_format(self, images):
+        """
+        """
         # Ensure all images have the same type and number of rows
         reference_shape = images[0].shape
         reference_type = images[0].dtype
@@ -235,3 +213,30 @@ class depth_estimation_and_object_recognition():
             formatted_images.append(img)
         
         return formatted_images
+    
+
+    # Image Normalization
+    def normalize_depth_image(self, depth_map):
+        """
+        A normalized depth map that maps depth values to the range 0 to 1.
+        Parameters.
+        
+        Inputs:
+            depth_image (numpy.ndarray): the input depth image.
+        Returns: 
+            the normalized depth image.
+        """
+        # Check if the input is empty
+        if depth_map is None:
+            raise ValueError("The input depth image is empty")
+
+        # Converting depth images to floating point types
+        depth_map = depth_map.astype(np.float32)
+        min_depth = np.min(depth_map)
+        max_depth = np.max(depth_map)
+        
+        # Normalized depth map to the range 0 to 1
+        depth_map_normalized = (depth_map - min_depth) / (max_depth - min_depth)
+        depth_map_normalized_display = (depth_map_normalized * 255).astype(np.uint8)
+        
+        return depth_map_normalized_display
