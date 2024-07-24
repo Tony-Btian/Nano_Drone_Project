@@ -44,5 +44,5 @@ def visualize_ply(file_path):
 
 if __name__ == "__main__":
     # 这里替换为你的点云文件路径
-    file_path = "point_cloud.ply"
+    file_path = "/home/tony/Documents/Github/MSc_Project/obstacle_detection_tool/point_cloud.ply"
     visualize_ply(file_path)

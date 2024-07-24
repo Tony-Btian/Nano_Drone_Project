@@ -9,7 +9,7 @@ cx = 320  # 光心x
 cy = 240  # 光心y
 
 # 深度图文件路径
-depth_map_path = 'depth_image.png'
+depth_map_path = '/home/tony/Documents/Github/MSc_Project/obstacle_detection_tool/depth_map.png'
 
 # 检查文件是否存在
 if not os.path.exists(depth_map_path):
@@ -61,4 +61,4 @@ def save_ply(filename, points):
         for p in points:
             f.write(f"{p[0]} {p[1]} {p[2]}\n")
 
-save_ply('point_cloud.ply', points_3d)
+save_ply('/home/tony/Documents/Github/MSc_Project/obstacle_detection_tool/point_cloud.ply', points_3d)

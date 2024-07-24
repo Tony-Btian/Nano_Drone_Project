@@ -29,7 +29,6 @@ from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
 from image_processing import depth_estimation_and_object_recognition
-from astart_path_finder import AStarPlanner
 
 
 FLYING_ATTITUDE = 1
@@ -101,7 +100,7 @@ if __name__ == '__main__':
     depth_process_mode = False
 
     # Image Processor
-    Image_Processor = depth_estimation_and_object_recognition()
+    image_processor = depth_estimation_and_object_recognition()
 
     # Getting the Camera's Parameters
     width = camera.getWidth()
@@ -110,7 +109,6 @@ if __name__ == '__main__':
     # Define start and goal positions in grid coordinates
     start_pos = [-0.9009894214148105, -5.592220508161193, 1.0013359608992145]
     goal_pos = [-8.802181198436783, -0.9554684815717253, 1.0000519299181825]
-
 
     print("\n")
     print("====== Controls =======\n\n")
@@ -121,7 +119,6 @@ if __name__ == '__main__':
     print("- Use W and S to go up and down\n")
     print("- Press A to start autonomous mode\n")
     print("- Press D to disable autonomous mode\n ")
-
 
     # Main loop:
     while robot.step(timestep) != -1:
@@ -205,28 +202,26 @@ if __name__ == '__main__':
 
 
          # --------------------- Image Processing ----------------------- #
+
         if image_process_mode:
             # Print image raw data type and size
             image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
             image_array = image_array[:, :, :3]
 
             # Image Processing with MiDas and YOLO
-            # yolo_display = Image_Processor.objects_detect(image_array)
-            depth_value, depth_map = Image_Processor.estimate_depth(image_array)
+            # yolo_display = image_processor.objects_detect(image_array)
+            depth_value, depth_map = image_processor.estimate_depth(image_array)
 
             # Image pre-processing (filtering, noise reduction)
-            filtered_image = Image_Processor.filter_depth_image(depth_value, method='gaussian')
-            depth_map_normalized = Image_Processor.obstacle_recognition(filtered_image)
-            edges_image = Image_Processor.sobel_edge_detection(filtered_image) # Edge Detection
-
+            filtered_image = image_processor.filter_depth_image(depth_value, method='gaussian')
+            normalized = image_processor.normalize_depth_image(filtered_image)
+            edges_image = image_processor.sobel_edge_detection(normalized) # Edge Detection
 
             # Creating a three-view image
-            images = [depth_map, depth_map_normalized, edges_image]
-            formatted_images = Image_Processor.ensure_same_format(images) # Convert and adjust images as needed
+            images = [depth_map, normalized, edges_image]
+            formatted_images = image_processor.ensure_same_format(images) # Convert and adjust images as needed
             tripple_viewer = cv2.hconcat(formatted_images)
-
-            # Show image
-            cv2.imshow('Camera Image', tripple_viewer)
+            cv2.imshow('Camera Image', tripple_viewer) # Show image
 
             # Handling Keyboard Events
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -234,6 +229,7 @@ if __name__ == '__main__':
        
 
         # ----------------- Autonomous mode handling ------------------- #
+
         if autonomous_mode:
             # Calculate the distance and direction to the goal
             dx = goal_pos[0] - x_global
@@ -260,6 +256,7 @@ if __name__ == '__main__':
 
 
         # ------------------- PID 速度控制器（固定高度） ------------------- #
+
         motor_power = PID_crazyflie.pid(dt, forward_desired, sideways_desired,
                                         yaw_desired, height_desired,
                                         roll, pitch, yaw_rate,

@@ -173,6 +173,31 @@ class depth_estimation_and_object_recognition():
         return position, size
 
 
+    # Image Normalization
+    def normalize_depth_image(self, depth_map):
+        """
+        A normalized depth map that maps depth values to the range 0 to 1.
+            Parameters.
+        depth_image (numpy.ndarray): the input depth image.
+        Returns: the normalized depth image.
+        """
+        # Check if the input is empty
+        if depth_map is None:
+            raise ValueError("The input depth image is empty")
+
+        # Converting depth images to floating point types
+        depth_map = depth_map.astype(np.float32)
+
+        # Get the minimum and maximum values of the depth image
+        min_depth = np.min(depth_map)
+        max_depth = np.max(depth_map)
+        # Normalized depth map to the range 0 to 1
+        depth_map_normalized = (depth_map - min_depth) / (max_depth - min_depth)
+        depth_map_normalized_display = (depth_map_normalized * 255).astype(np.uint8)
+        
+        return depth_map_normalized_display
+
+
 
     # -------------- Graphics Processing Tools ---------------- #
 
