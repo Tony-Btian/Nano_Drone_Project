@@ -1,7 +1,16 @@
 PySide6
+setuptools
 numpy==1.26.4
+controller
 pandas
+mathlib
+matplotlib
+psutil
+pyqtgraph
 opencv-python
 torch
 torchvision
 torchaudio
+timm
+ultralytics
+scikit-learn

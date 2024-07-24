@@ -1,7 +1,7 @@
 # MSc Project: Autonomous Control for Nano Drones
 
 <div align="center">
-    <img src="pictures/Logo.jpg"/>
+    <img src="Pictures/Logo.jpg"/>
     <p>
       <i align="center">Pioneering UAV Technology for Critical Missions 🚀</i>
     </p>

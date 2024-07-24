@@ -1,4 +1,5 @@
 # This Python file uses the following encoding: utf-8
+
 import sys
 from PySide6.QtWidgets import QApplication, QWidget
 from ui_form import Ui_Widget
@@ -22,10 +23,16 @@ class Widget(QWidget):
         self.ui.pushButton_disconnect.clicked.connect(self.functionality._on_disconnect)
         self.ui.pushButton_launch.clicked.connect(self.functionality._on_launch)
         self.ui.pushButton_stop.clicked.connect(self.functionality._on_stop)
+        self.ui.pushButton_loadmodel.clicked.connect(self.functionality._on_load_model)
+
+    def closeEvent(self, event):
+        self.functionality._cleanup()
+        event.accept()
+        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     widget = Widget()
     widget.show()
-    widget.ui.textEdit.append("Application started. Initializing models...")
+    widget.ui.textEdit.append("Application started. Select models and click 'Load Models'")
     sys.exit(app.exec())
