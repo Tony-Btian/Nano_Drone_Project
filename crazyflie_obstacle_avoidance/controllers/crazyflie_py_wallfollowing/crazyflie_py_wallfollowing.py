@@ -24,13 +24,12 @@ import numpy as np
 
 from controller import Robot
 from controller import Keyboard
-from math import cos, sin
+from math import atan2, cos, pi, sin, sqrt
 from pid_controller import pid_velocity_fixed_height_controller
 from wall_following import WallFollowing
 from ultralytics import YOLO
 from image_processing import depth_estimation_and_object_recognition
-from waypoint_navigation import WaypointNavigation
-from astart_planner import AStarPlanner
+from astart_path_finder import AStarPlanner
 
 
 FLYING_ATTITUDE = 1
@@ -109,7 +108,9 @@ if __name__ == '__main__':
     height = camera.getHeight()
 
     # Define start and goal positions in grid coordinates
-    goal_pos = (9, 9)   # 定义终点，假设网格大小为10x10
+    start_pos = [-0.9009894214148105, -5.592220508161193, 1.0013359608992145]
+    goal_pos = [-8.802181198436783, -0.9554684815717253, 1.0000519299181825]
+
 
     print("\n")
     print("====== Controls =======\n\n")
@@ -143,6 +144,7 @@ if __name__ == '__main__':
         y_global = gps.getValues()[1]
         altitude = gps.getValues()[2]
         current_position = gps.getValues()
+        print("GPS Value", current_position)
 
         v_x_global = (x_global - past_x_global)/dt
         v_y_global = (y_global - past_y_global)/dt
@@ -214,11 +216,12 @@ if __name__ == '__main__':
 
             # Image pre-processing (filtering, noise reduction)
             filtered_image = Image_Processor.filter_depth_image(depth_value, method='gaussian')
-            edges_image = Image_Processor.sobel_edge_detection(filtered_image) # Edge Detection 
-            grid_map = Image_Processor.depth_to_grid(filtered_image, DEPTH_THRESHOLD, GRID_SIZE)
+            depth_map_normalized = Image_Processor.obstacle_recognition(filtered_image)
+            edges_image = Image_Processor.sobel_edge_detection(filtered_image) # Edge Detection
+
 
             # Creating a three-view image
-            images = [depth_map, filtered_image, edges_image]
+            images = [depth_map, depth_map_normalized, edges_image]
             formatted_images = Image_Processor.ensure_same_format(images) # Convert and adjust images as needed
             tripple_viewer = cv2.hconcat(formatted_images)
 
@@ -232,25 +235,28 @@ if __name__ == '__main__':
 
         # ----------------- Autonomous mode handling ------------------- #
         if autonomous_mode:
-            
-            pathfinder = AStarPlanner(grid_map)
+            # Calculate the distance and direction to the goal
+            dx = goal_pos[0] - x_global
+            dy = goal_pos[1] - y_global
+            distance = sqrt(dx**2 + dy**2)
 
-            # Convert GPS coordinates to grid coordinates
-            start_x = int((x_global / GRID_SIZE) % grid_map.shape[0])
-            start_y = int((y_global / GRID_SIZE) % grid_map.shape[1])
-            goal_x, goal_y = goal_pos
+            if distance > 0.5:
+                angle_to_goal = atan2(dy, dx)
+                desired_yaw = angle_to_goal
+                yaw_error = desired_yaw - yaw
 
-            path = pathfinder.a_star((start_x, start_y), (goal_x, goal_y))
-            if path:
-                next_move = path[1]
-                target_x, target_y = next_move
-                current_x, current_y = start_x, start_y
-                forward_desired = (target_x - current_x) * GRID_SIZE
-                sideways_desired = (target_y - current_y) * GRID_SIZE
+                if yaw_error > pi:
+                    yaw_error -= 2 * pi
+                elif yaw_error < -pi:
+                    yaw_error += 2 * pi
+                forward_desired = 0.5
+                sideways_desired = 0
+                yaw_desired = yaw_error
             else:
-                print("No valid path to goal. Moving directly towards the goal.")
-                forward_desired = goal_pos[0] - x_global
-                sideways_desired = goal_pos[1] - y_global
+                forward_desired = 0
+                sideways_desired = 0
+                yaw_desired = 0
+                print("Reached the goal.")
 
 
         # ------------------- PID 速度控制器（固定高度） ------------------- #
@@ -260,9 +266,9 @@ if __name__ == '__main__':
                                         altitude, v_x, v_y)
 
         m1_motor.setVelocity(-motor_power[0])
-        m2_motor.setVelocity(motor_power[1])
+        m2_motor.setVelocity( motor_power[1])
         m3_motor.setVelocity(-motor_power[2])
-        m4_motor.setVelocity(motor_power[3])
+        m4_motor.setVelocity( motor_power[3])
 
         past_time = robot.getTime()
         past_x_global = x_global

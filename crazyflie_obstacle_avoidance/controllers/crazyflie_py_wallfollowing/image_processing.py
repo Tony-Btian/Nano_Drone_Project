@@ -1,3 +1,12 @@
+
+"""
+file:   image_processing.py
+
+The graphics captured by UAV were converted into visual processing
+
+Author: Binhan Tian (University of Glasgow)
+"""
+
 import cv2
 import torch
 import numpy as np
@@ -34,6 +43,7 @@ class depth_estimation_and_object_recognition():
     
 
     # -------------- Object Recognition and Depth Estimation ---------------- #
+
     # Object Detection 物体检测
     def objects_detect(self, image_array):
         object_detection = self.yolo_model(image_array)
@@ -62,11 +72,13 @@ class depth_estimation_and_object_recognition():
         depth_map = cv2.applyColorMap(depth_map, cv2.COLORMAP_MAGMA)
         return depth_value, depth_map
     
-    
+
+    # -------------------------- Edge Detection ----------------------------- #
+
     # Sobel Operator for Edge Detection 边缘检测的Sobel算子
-    def sobel_edge_detection(self, depth_image):
+    def sobel_edge_detection(self, depth_map):
         # Convert to grayscale image
-        gray = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
+        gray = cv2.normalize(depth_map, None, 0, 255, cv2.NORM_MINMAX).astype('uint8')
         
         # Calculate the gradient in the x-direction and y-direction
         grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
@@ -83,47 +95,24 @@ class depth_estimation_and_object_recognition():
     
 
     # Canny Operator for Edge Detection 边缘检测的Canny算子
-    # def canny_dege_detection(self, depth_image):
+    def canny_dege_detection(self, depth_map):
+        grad = cv2.Canny(depth_map, 50, 150)
+
+        return grad
     
 
-    # Convert a depth map to a grid map
-    def depth_to_grid(self, depth_map, threshold, grid_size):
-        rows, cols = depth_map.shape
-        grid_rows = int(rows / grid_size)
-        grid_cols = int(cols / grid_size)
-        grid_map = np.zeros((grid_rows, grid_cols), dtype=int)
-        
-        print("Depth map - min:", np.min(depth_map), "max:", np.max(depth_map), "mean:", np.mean(depth_map))
-        print("Grid size - rows:", grid_rows, "cols:", grid_cols)
-        
-        # 可视化深度图
-        depth_visual = cv2.normalize(depth_map, None, 0, 255, cv2.NORM_MINMAX)
-        depth_visual = np.uint8(depth_visual)
-        cv2.imshow('Depth Map', depth_visual)
-        
-        # 根据深度图的统计信息动态调整阈值
-        dynamic_threshold = max(threshold, np.mean(depth_map) * 0.5)
-        print("Dynamic threshold:", dynamic_threshold)
-        
-        for i in range(grid_rows):
-            for j in range(grid_cols):
-                grid_cell = depth_map[int(i*grid_size):int((i+1)*grid_size), int(j*grid_size):int((j+1)*grid_size)]
-                if np.any(grid_cell < dynamic_threshold):
-                    grid_map[i, j] = 1  # 标记为障碍物
-                    
-        
-        return grid_map
-    
 
     # ---------------- Handle Obstacle Detection ---------------- #
-    def depth_to_point_cloud(self, depth_image, K):
+
+    # Point Cloud Transformation
+    def depth_to_point_cloud(self, depth_map, K):
         # 假设内参矩阵K
         fx, fy = K[0, 0], K[1, 1]
         cx, cy = K[0, 2], K[1, 2]
-        height, width = depth_image.shape
+        height, width = depth_map.shape
 
         i, j = np.indices((height, width))
-        z = depth_image
+        z = depth_map
         x = (j - cx) * z / fx
         y = (i - cy) * z / fy
 
@@ -148,7 +137,7 @@ class depth_estimation_and_object_recognition():
             obstacle_points = point_cloud[labels == label]
             centroid = np.mean(obstacle_points, axis=0)
             obstacles.append(centroid)
-            
+
         return obstacles
 
 
@@ -184,7 +173,9 @@ class depth_estimation_and_object_recognition():
         return position, size
 
 
+
     # -------------- Graphics Processing Tools ---------------- #
+
     # Image filters
     def filter_depth_image(self, depth_image, method='gaussian'):
         if method == 'gaussian':
@@ -216,7 +207,6 @@ class depth_estimation_and_object_recognition():
 
             if img.shape[0] != reference_shape[0]:  # Resize to match the number of rows
                 img = cv2.resize(img, (reference_shape[1], reference_shape[0]))
-    
             formatted_images.append(img)
         
         return formatted_images

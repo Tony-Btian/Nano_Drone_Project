@@ -2,11 +2,21 @@ import heapq
 import numpy as np
 
 class AStarPlanner:
-    def __init__(self, grid, max_speed=1.0):
+    def __init__(self, 
+                 grid,
+                 max_forward_speed=0.3,
+                 max_turn_rate=0.5, 
+                 max_speed=1.0,
+                 wait_for_measurement_seconds=1.0
+                 ):
+        
         self.grid = grid
         self.rows = grid.shape[0]
         self.cols = grid.shape[1]
         self.max_speed = max_speed  # 无人机的最大速度
+        self.max_forward_speed = max_forward_speed
+        self.max_turn_rate = max_turn_rate
+        self.wait_for_measurement_seconds = wait_for_measurement_seconds
 
 
     def heuristic(self, a, b):
