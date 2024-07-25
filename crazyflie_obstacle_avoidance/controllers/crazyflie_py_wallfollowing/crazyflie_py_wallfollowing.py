@@ -35,6 +35,7 @@ from obstacle_avoidance import PointCloudVisualizer
 FLYING_ATTITUDE = 1
 GRID_SIZE = 10
 DEPTH_THRESHOLD = 200
+cumulative_sideways = 0
 
 if __name__ == '__main__':
 
@@ -133,6 +134,7 @@ if __name__ == '__main__':
     resolution = 0.1  # Size of each raster cell (meters)
     map_size = (int(plane_size[0] / resolution), int(plane_size[1] / resolution))
     slam_map = np.zeros(map_size)
+    
     
 
     print("\n")
@@ -271,14 +273,52 @@ if __name__ == '__main__':
                     yaw_error -= 2 * pi
                 elif yaw_error < -pi:
                     yaw_error += 2 * pi
-                forward_desired = 0.5
-                sideways_desired = 0
+
                 yaw_desired = yaw_error
+
+                # 使用 SLAM 地图更新避障信息
+                left_sum = np.sum(slam_map[:map_size[0]//2, :])
+                right_sum = np.sum(slam_map[map_size[0]//2:, :])
+
+                # 检查是否存在障碍物
+                obstacle_detected = left_sum > 0 or right_sum > 0
+
+                if obstacle_detected:
+                    # 根据 SLAM 地图信息调整侧向运动
+                    if left_sum > right_sum:
+                        sideways_desired = -1  # 向右移动
+                    else:
+                        sideways_desired = 1  # 向左移动
+
+                    forward_desired = 0  # 停止前进进行避障
+                    cumulative_sideways += sideways_desired  # 记录侧向移动量
+                else:
+                    # 没有检测到障碍物，检查是否需要回到原轨道
+                    if abs(cumulative_sideways) > 0.2:  # 阈值可以根据需要调整
+                        sideways_desired = -cumulative_sideways  # 反向移动
+                        forward_desired = 0  # 停止前进以调整位置
+                        cumulative_sideways += sideways_desired  # 更新累计侧向移动量
+                    else:
+                        sideways_desired = 0
+                        forward_desired = 0.5  # 沿着直线行进到终点
+                                
             else:
                 forward_desired = 0
                 sideways_desired = 0
                 yaw_desired = 0
+                cumulative_sideways = 0  # 重置累计侧向移动量
                 print("Reached the goal.")
+
+            for y in range(height):
+                    for x in range(width):
+                        distance = depth_value[y, x]
+                        if distance < 2.0:  # 只处理一定距离内的点
+                            angle = atan2(y - height // 2, x - width // 2) + yaw
+                            map_x = int(start_pos[0] + (distance * cos(angle)) / resolution)
+                            map_y = int(start_pos[1] + (distance * sin(angle)) / resolution)
+                            if 0 <= map_x < map_size[0] and 0 <= map_y < map_size[1]:
+                                slam_map[map_x, map_y] = 1
+            print("SLAM", slam_map)
 
 
         # ------------------- PID 速度控制器（固定高度） ------------------- #
