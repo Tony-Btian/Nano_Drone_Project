@@ -5,11 +5,8 @@
 #  | (  O  ) |     / __  / / __/ ___/ ___/ __ `/_  / / _ \
 #  | / ,..´  |    / /_/ / / /_/ /__/ /  / /_/ / / /_/  __/
 #     +.......   /_____/_/\__/\___/_/   \__,_/ /___/\___/
-
 # MIT License
-
 # Copyright (c) 2023 Bitcraze
-
 
 """
 file: crazyflie_py_wallfollowing.py
@@ -21,21 +18,55 @@ Author:   Kimberly McGuire (Bitcraze AB)
 
 import cv2
 import numpy as np
+import threading
+import queue
 
 from controller import Robot
 from controller import Keyboard
 from math import atan2, cos, pi, sin, sqrt
 from pid_controller import pid_velocity_fixed_height_controller
-from wall_following import WallFollowing
 from ultralytics import YOLO
 from image_processing import depth_estimation_and_object_recognition
 from obstacle_avoidance import PointCloudVisualizer
 
-
 FLYING_ATTITUDE = 1
 GRID_SIZE = 10
 DEPTH_THRESHOLD = 200
-cumulative_sideways = 0
+
+image_process_mode = False
+image_queue = queue.Queue()
+
+# --------------------- Image Processing ----------------------- #
+
+def image_processing_thread_func(camera_data, height, width, K, image_processor):
+    """
+    """
+    global image_process_mode
+    while True:
+        if image_process_mode:
+            camera_data = camera.getImage()
+            image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
+            image_array = image_array[:, :, :3]
+
+            # Image Processing with MiDas and YOLO
+            depth_value, depth_map = image_processor.estimate_depth(image_array)
+
+            # Image pre-processing (filtering, noise reduction)
+            filtered_image = image_processor.filter_depth_image(depth_value, method='gaussian')
+            normalized = image_processor.normalize_depth_image(filtered_image)
+            # point_cloud = image_processor.depth_to_point_cloud(normalized, K)
+            edges_map = image_processor.sobel_edge_detection(normalized)  # Edge Detection
+
+            # Creating a three-view image
+            images = [depth_map, normalized, edges_map]
+            formatted_images = image_processor.ensure_same_format(images)  # Convert and adjust images as needed
+            tripple_viewer = cv2.hconcat(formatted_images)
+            cv2.imshow('Camera Image', tripple_viewer)  # Show image
+
+            # Handling Keyboard Events
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
 
 if __name__ == '__main__':
 
@@ -91,11 +122,6 @@ if __name__ == '__main__':
 
     height_desired = FLYING_ATTITUDE
 
-    wall_following = WallFollowing(angle_value_buffer=0.01, 
-                                   reference_distance_from_wall=0.5,
-                                   max_forward_speed=0.3, 
-                                   init_state=WallFollowing.StateWallFollowing.FORWARD)
-
     autonomous_mode = False
     image_process_mode = False
     yolo_process_mode = False
@@ -136,7 +162,6 @@ if __name__ == '__main__':
     slam_map = np.zeros(map_size)
     
     
-
     print("\n")
     print("====== Controls =======\n\n")
     print(" The Crazyflie can be controlled from your keyboard!\n")
@@ -146,6 +171,11 @@ if __name__ == '__main__':
     print("- Use W and S to go up and down\n")
     print("- Press A to start autonomous mode\n")
     print("- Press D to disable autonomous mode\n ")
+
+    # Start image processing thread
+    image_processing_thread = threading.Thread(target=image_processing_thread_func, args=(camera, height, width, K, image_processor))
+    image_processing_thread.daemon = True  # Allow thread to exit when the main program exits
+    image_processing_thread.start()
 
     # Main loop:
     while robot.step(timestep) != -1:
@@ -224,37 +254,6 @@ if __name__ == '__main__':
 
         height_desired += height_diff_desired * dt
 
-        # Converting images to NumPy arrays
-        camera_data = camera.getImage()
-
-
-         # --------------------- Image Processing ----------------------- #
-
-        if image_process_mode:
-            # Print image raw data type and size
-            image_array = np.frombuffer(camera_data, np.uint8).reshape((height, width, 4))
-            image_array = image_array[:, :, :3]
-
-            # Image Processing with MiDas and YOLO
-            # yolo_display = image_processor.objects_detect(image_array)
-            depth_value, depth_map = image_processor.estimate_depth(image_array)
-
-            # Image pre-processing (filtering, noise reduction)
-            filtered_image = image_processor.filter_depth_image(depth_value, method='gaussian')
-            normalized = image_processor.normalize_depth_image(filtered_image)
-            point_cloud = image_processor.depth_to_point_cloud(normalized, K)
-            edges_map = image_processor.sobel_edge_detection(normalized) # Edge Detection
-
-            # Creating a three-view image
-            images = [depth_map, normalized, edges_map]
-            formatted_images = image_processor.ensure_same_format(images) # Convert and adjust images as needed
-            tripple_viewer = cv2.hconcat(formatted_images)
-            cv2.imshow('Camera Image', tripple_viewer) # Show image
-
-            # Handling Keyboard Events
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-       
 
         # ----------------- Autonomous mode handling ------------------- #
 
@@ -309,16 +308,16 @@ if __name__ == '__main__':
                 cumulative_sideways = 0  # 重置累计侧向移动量
                 print("Reached the goal.")
 
-            for y in range(height):
-                    for x in range(width):
-                        distance = depth_value[y, x]
-                        if distance < 2.0:  # 只处理一定距离内的点
-                            angle = atan2(y - height // 2, x - width // 2) + yaw
-                            map_x = int(start_pos[0] + (distance * cos(angle)) / resolution)
-                            map_y = int(start_pos[1] + (distance * sin(angle)) / resolution)
-                            if 0 <= map_x < map_size[0] and 0 <= map_y < map_size[1]:
-                                slam_map[map_x, map_y] = 1
-            print("SLAM", slam_map)
+            # for y in range(height):
+            #         for x in range(width):
+            #             distance = depth_value[y, x]
+            #             if distance < 2.0:  # 只处理一定距离内的点
+            #                 angle = atan2(y - height // 2, x - width // 2) + yaw
+            #                 map_x = int(start_pos[0] + (distance * cos(angle)) / resolution)
+            #                 map_y = int(start_pos[1] + (distance * sin(angle)) / resolution)
+            #                 if 0 <= map_x < map_size[0] and 0 <= map_y < map_size[1]:
+            #                     slam_map[map_x, map_y] = 1
+            # print("SLAM", slam_map)
 
 
         # ------------------- PID 速度控制器（固定高度） ------------------- #

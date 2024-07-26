@@ -1,3 +1,11 @@
+"""
+File: obstacle_avoidance.py
+
+The graphics captured by UAV were converted into visual processing
+
+Author: Binhan Tian (University of Glasgow)
+Date: 25 July, 2024
+"""
 import numpy as np
 import pyvista as pv
 import time
