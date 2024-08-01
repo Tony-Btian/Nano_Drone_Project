@@ -1,0 +1,45 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/trees/protos/Forest.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+
+WorldInfo {
+}
+Viewpoint {
+  orientation -0.32210665317403114 0.263029334691775 0.9094299715055727 1.8640634471971451
+  position 5.819637781353105 -13.205672359883623 9.002131464025226
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Forest {
+  translation -0.01 -0.01 0.0199953
+  rotation 1 0 0 4.692820414042842e-06
+  shape [
+    -10 -10
+    10 -10
+    10 10
+  ]
+}
+Forest {
+  translation -0.01 -0.01 0.0199953
+  rotation 1.125079999996903e-14 -2.346409999993541e-06 0.9999999999972473 3.14159
+  shape [
+    -10 -10
+    10 -10
+    10 10
+  ]
+}
+Floor {
+  size 20 20
+}
+Crazyflie {
+  hidden linearVelocity_0 5.506807442913767e-08 -1.7043854621915546e-07 -2.4463278265329916e-08
+  hidden angularVelocity_0 -1.0924611620735102e-06 -2.0979425681261562e-07 -1.011398985357702e-07
+  translation 4.5399998733724125 -4.59000010486587 1.0000000215435605
+  rotation -0.11602384455710313 0.007408090743799396 -0.9932188015164236 1.068006538972524e-06
+}
