@@ -58,7 +58,7 @@ def image_processing_thread_func(camera_data, height, width, K, image_processor)
             edges_map = image_processor.sobel_edge_detection(normalized)  # Edge Detection
 
             # Creating a three-view image
-            images = [depth_map, normalized, edges_map]
+            images = [image_array, depth_map, normalized, edges_map]
             formatted_images = image_processor.ensure_same_format(images)  # Convert and adjust images as needed
             tripple_viewer = cv2.hconcat(formatted_images)
             cv2.imshow('Camera Image', tripple_viewer)  # Show image
